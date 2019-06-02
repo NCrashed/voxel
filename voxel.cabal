@@ -15,7 +15,7 @@ copyright:           2018 Anton Gushcha
 maintainer:          Anton Gushcha <ncrashed@protonmail.com>
 category:            Data
 build-type:          Simple
-cabal-version:       1.18
+cabal-version:       1.24
 extra-source-files:
   README.md
   CHANGELOG.md
@@ -49,6 +49,7 @@ library
 
 test-suite test-voxel
   hs-source-dirs:      test
+  build-tools: tasty-discover
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
