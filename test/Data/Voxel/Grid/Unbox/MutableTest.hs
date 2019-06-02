@@ -122,3 +122,38 @@ unit_swaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a
       a2' <- GM.read g i2
       assertEqual ("a1 for " ++ show args) a2 a1'
       assertEqual ("a2 for " ++ show args) a1 a2'
+
+unit_unsafeReadWrite :: IO ()
+unit_unsafeReadWrite = traverse_ single [(s, GM.indexToPos s i, a)|
+    s <- sizes
+  , i <- [0 .. s*s*s-1]
+  , a <- values]
+  where
+    sizes = [1, 3, 16, 32]
+    values = [0, (-42), 42, maxBound, minBound]
+    single (n,i,a) = do
+      g :: IOVoxelGrid Int <- GM.new n
+      GM.unsafeWrite g i a
+      a' <- GM.unsafeRead g i
+      assertEqual "read write" a a'
+
+unit_unsafeSwaps :: IO ()
+unit_unsafeSwaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a2)|
+    s <- sizes
+  , i1 <- [0 .. s*s*s-1]
+  , let i2 = s*s*s - 1 - i1
+  , i1 /= i2
+  , a1 <- values
+  , a2 <- reverse values]
+  where
+    sizes = [1, 3, 16, 32]
+    values = [0, (-42), 42, maxBound, minBound]
+    single args@(n,i1,i2,a1,a2) = do
+      g :: IOVoxelGrid Int <- GM.new n
+      GM.unsafeWrite g i1 a1
+      GM.unsafeWrite g i2 a2
+      GM.unsafeSwap g i1 i2
+      a1' <- GM.unsafeRead g i1
+      a2' <- GM.unsafeRead g i2
+      assertEqual ("a1 for " ++ show args) a2 a1'
+      assertEqual ("a2 for " ++ show args) a1 a2'

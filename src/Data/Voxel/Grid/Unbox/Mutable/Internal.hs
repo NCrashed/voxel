@@ -120,4 +120,23 @@ swap (MVoxelGrid n g) p1 p2
   | otherwise = do
     let i1 = posToIndex n p1
         i2 = posToIndex n p2
-    VM.swap g i1 i2 
+    VM.swap g i1 i2
+
+-- | Read single element in grid without bounding checks.
+unsafeRead :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> m a
+unsafeRead (MVoxelGrid n g) p = do
+  let i = posToIndex n p
+  VM.unsafeRead g i
+
+-- | Write single element in grid without bounding checks.
+unsafeWrite :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> a -> m ()
+unsafeWrite (MVoxelGrid n g) p a = do
+  let i = posToIndex n p
+  VM.unsafeWrite g i a
+
+-- | Swap two elements in the grid without bounding checks.
+unsafeSwap :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> V3 Int -> m ()
+unsafeSwap (MVoxelGrid n g) p1 p2 = do
+  let i1 = posToIndex n p1
+      i2 = posToIndex n p2
+  VM.unsafeSwap g i1 i2

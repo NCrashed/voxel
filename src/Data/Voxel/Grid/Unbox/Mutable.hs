@@ -14,6 +14,9 @@ module Data.Voxel.Grid.Unbox.Mutable(
   , read
   , write
   , swap
+  , unsafeRead
+  , unsafeWrite
+  , unsafeSwap
   ) where
 
 import Prelude()
