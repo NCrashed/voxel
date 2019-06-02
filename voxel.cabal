@@ -24,8 +24,11 @@ library
   hs-source-dirs:      src
   exposed-modules:
     Data.Voxel.Grid
+    Data.Voxel.Grid.Unbox.Mutable
+    Data.Voxel.Grid.Unbox.Mutable.Internal
   build-depends:
       base
+    , vector          >= 0.10   && < 0.13
   default-language:    Haskell2010
   default-extensions:
     BangPatterns
