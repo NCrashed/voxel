@@ -17,7 +17,7 @@ data MVoxelGrid s a = MVoxelGrid {
     voxelGridSize :: !Int
   -- | Vector storage of grid
   , voxelGridData :: !(MVector s a)
-}
+  }
 
 -- | 'MVoxelGrid' for 'IO' monad
 type IOVoxelGrid = MVoxelGrid RealWorld
@@ -71,6 +71,7 @@ posToIndex ::
   -> V3 Int -- ^ Position
   -> Int -- ^ Index in array
 posToIndex n (V3 x y z) = x + y * n + z * n * n
+{-# INLINE posToIndex #-}
 
 -- | Convert index in flat array to grid 3d position. Doens't check for bounds.
 indexToPos ::
@@ -83,6 +84,7 @@ indexToPos n i = V3 x y z
     y = i' `div` n
     z = i `div` (n*n)
     i' = i - z * n * n
+{-# INLINE indexToPos #-}
 
 -- | Check that given position is in bounds of array
 posInBounds ::
@@ -91,6 +93,7 @@ posInBounds ::
   -> Bool
 posInBounds n (V3 x y z) =
   x >= 0 && x < n && y >= 0 && y < n && z >= 0 && z < n
+{-# INLINE posInBounds #-}
 
 -- | Read single element in grid with bounding checks.
 read :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> m a
@@ -100,6 +103,7 @@ read (MVoxelGrid n g) p
   | otherwise = do
     let i = posToIndex n p
     VM.read g i
+{-# INLINE read #-}
 
 -- | Write single element in grid with bounding checks.
 write :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> a -> m ()
@@ -109,6 +113,7 @@ write (MVoxelGrid n g) p a
   | otherwise = do
     let i = posToIndex n p
     VM.write g i a
+{-# INLINE write #-}
 
 -- | Swap two elements in the grid
 swap :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> V3 Int -> m ()
@@ -121,18 +126,21 @@ swap (MVoxelGrid n g) p1 p2
     let i1 = posToIndex n p1
         i2 = posToIndex n p2
     VM.swap g i1 i2
+{-# INLINE swap #-}
 
 -- | Read single element in grid without bounding checks.
 unsafeRead :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> m a
 unsafeRead (MVoxelGrid n g) p = do
   let i = posToIndex n p
   VM.unsafeRead g i
+{-# INLINE unsafeRead #-}
 
 -- | Write single element in grid without bounding checks.
 unsafeWrite :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> a -> m ()
 unsafeWrite (MVoxelGrid n g) p a = do
   let i = posToIndex n p
   VM.unsafeWrite g i a
+{-# INLINE unsafeWrite #-}
 
 -- | Swap two elements in the grid without bounding checks.
 unsafeSwap :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> V3 Int -> m ()
@@ -140,3 +148,4 @@ unsafeSwap (MVoxelGrid n g) p1 p2 = do
   let i1 = posToIndex n p1
       i2 = posToIndex n p2
   VM.unsafeSwap g i1 i2
+{-# INLINE unsafeSwap #-}

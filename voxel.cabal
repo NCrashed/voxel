@@ -32,6 +32,8 @@ library
   hs-source-dirs:      src
   exposed-modules:
     Data.Voxel.Grid
+    Data.Voxel.Grid.Unbox
+    Data.Voxel.Grid.Unbox.Internal
     Data.Voxel.Grid.Unbox.Mutable
     Data.Voxel.Grid.Unbox.Mutable.Internal
   build-depends:
@@ -44,6 +46,7 @@ library
     BangPatterns
     DeriveGeneric
     OverloadedStrings
+    RankNTypes
     RecordWildCards
     ScopedTypeVariables
     TupleSections
