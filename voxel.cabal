@@ -36,6 +36,7 @@ library
     Data.Voxel.Grid.Unbox.Mutable.Internal
   build-depends:
       base            >= 4.5    && < 4.14
+    , primitive       >= 0.5    && < 0.8
     , vector          >= 0.10   && < 0.13
   default-language:    Haskell2010
   default-extensions:
@@ -51,11 +52,21 @@ test-suite test-voxel
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
+  other-modules:
+    Data.Voxel.Grid.Unbox.MutableTest
   build-depends:
       base
     , HUnit             >= 1.3
     , QuickCheck        >= 2.8.2
     , tasty             >= 0.11
+    , tasty-discover    >= 4.2
     , tasty-hunit       >= 0.9
     , tasty-quickcheck  >= 0.8
     , voxel
+  default-extensions:
+    BangPatterns
+    DeriveGeneric
+    OverloadedStrings
+    RecordWildCards
+    ScopedTypeVariables
+    TupleSections
