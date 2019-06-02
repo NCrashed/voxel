@@ -65,14 +65,14 @@ length g = s * s * s
     s = size g
 {-# INLINE length #-}
 
--- | Convert 3d position in grid to index in flat array
+-- | Convert 3d position in grid to index in flat array. Doens't check for bounds.
 posToIndex ::
      Int -- ^ Dimension size
   -> V3 Int -- ^ Position
   -> Int -- ^ Index in array
 posToIndex n (V3 x y z) = x + y * n + z * n * n
 
--- | Convert index in flat array to grid 3d position
+-- | Convert index in flat array to grid 3d position. Doens't check for bounds.
 indexToPos ::
      Int -- ^ Dimension size
   -> Int -- ^ Index in array
@@ -84,8 +84,29 @@ indexToPos n i = V3 x y z
     z = i `div` (n*n)
     i' = i - z * n * n
 
+-- | Check that given position is in bounds of array
+posInBounds ::
+     Int -- ^ Dimension size
+  -> V3 Int -- ^ Position
+  -> Bool
+posInBounds n (V3 x y z) =
+  x >= 0 && x < n && y >= 0 && y < n && z >= 0 && z < n
+
 -- | Read single element in grid with bounding checks.
 read :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> m a
-read (MVoxelGrid n g) p = do
-  let i = posToIndex n p
-  VM.read g i
+read (MVoxelGrid n g) p
+  | not (posInBounds n p) = fail $ "MVoxelGrid: read " ++ show p
+    ++ " is out of bounds of " ++ show (V3 n n n)
+  | otherwise = do
+    let i = posToIndex n p
+    VM.read g i
+
+-- | Write single element in grid with bounding checks.
+write :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> a -> m ()
+write (MVoxelGrid n g) p a
+  | not (posInBounds n p) = fail $ "MVoxelGrid: write " ++ show p
+    ++ " is out of bounds of " ++ show (V3 n n n)
+  | otherwise = do
+    let i = posToIndex n p
+    VM.write g i a
+   

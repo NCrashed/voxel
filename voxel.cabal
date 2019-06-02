@@ -56,9 +56,11 @@ test-suite test-voxel
   main-is:             Main.hs
   other-modules:
     Data.Voxel.Grid.Unbox.MutableTest
+    Test.Util
   build-depends:
       base
     , HUnit             >= 1.3
+    , linear
     , QuickCheck        >= 2.8.2
     , tasty             >= 0.11
     , tasty-discover    >= 4.2
