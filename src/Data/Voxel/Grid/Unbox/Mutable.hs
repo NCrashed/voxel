@@ -4,9 +4,14 @@ module Data.Voxel.Grid.Unbox.Mutable(
   , STVoxelGrid
   -- * Creation
   , new
-  -- * Quering
+  , replicate
+  , replicateM
+  , clone
+  -- * Quering size
   , size
   , length
+  -- * Elements operations
+  , read 
   ) where
 
 import Prelude()
