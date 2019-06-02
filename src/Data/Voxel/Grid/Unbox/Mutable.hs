@@ -13,6 +13,7 @@ module Data.Voxel.Grid.Unbox.Mutable(
   -- * Elements operations
   , read
   , write
+  , swap
   ) where
 
 import Prelude()

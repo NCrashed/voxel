@@ -109,4 +109,15 @@ write (MVoxelGrid n g) p a
   | otherwise = do
     let i = posToIndex n p
     VM.write g i a
-   
+
+-- | Swap two elements in the grid
+swap :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> V3 Int -> m ()
+swap (MVoxelGrid n g) p1 p2
+  | not (posInBounds n p1) = fail $ "MVoxelGrid: swap " ++ show p1
+    ++ " is out of bounds of " ++ show (V3 n n n)
+  | not (posInBounds n p2) = fail $ "MVoxelGrid: swap " ++ show p2
+    ++ " is out of bounds of " ++ show (V3 n n n)
+  | otherwise = do
+    let i1 = posToIndex n p1
+        i2 = posToIndex n p2
+    VM.swap g i1 i2 
