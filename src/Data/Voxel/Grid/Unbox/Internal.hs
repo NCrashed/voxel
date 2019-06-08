@@ -2,6 +2,7 @@ module Data.Voxel.Grid.Unbox.Internal where
 
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.ST
+import Data.Bifunctor (first)
 import Data.Vector.Unboxed (Unbox, Vector)
 import Data.Voxel.Grid.Unbox.Mutable.Internal (MVoxelGrid, posToIndex, indexToPos, posInBounds)
 import Linear
@@ -91,7 +92,9 @@ create m = VoxelGrid s v
   => VoxelGrid a -- ^ Initial grid (of length m)
   -> [(V3 Int, a)] -- ^ list of index/value (of length n)
   -> VoxelGrid a
-(//) = undefined
+(//) (VoxelGrid s a) is
+  | P.all (posInBounds s . fst) is = VoxelGrid s $ a V.// fmap (first (posToIndex s)) is
+  | otherwise = error $ "(//): out of bounds " ++ show (fmap fst $ filter (not . posInBounds s . fst) is)
 {-# INLINE (//) #-}
 
 -- | Same as (//) but without bounds checking.
@@ -99,58 +102,58 @@ unsafeUpd :: Unbox a
   => VoxelGrid a -- ^ Initial grid (of length m)
   -> [(V3 Int, a)] -- ^ list of index/value (of length n)
   -> VoxelGrid a
-unsafeUpd = undefined
+unsafeUpd (VoxelGrid s a) is =  VoxelGrid s $ V.unsafeUpd a $ fmap (first (posToIndex s)) is
 {-# INLINE unsafeUpd #-}
 
 -- | Apply a destructive operation to a grid. The operation will be performed
 -- in place if it is safe to do so and will modify a copy of the vector otherwise.
 modify :: Unbox a => (forall s . MVoxelGrid s a -> ST s ()) -> VoxelGrid a -> VoxelGrid a
-modify _ = undefined
+modify m (VoxelGrid s a) = VoxelGrid s $ V.modify (m . GM.MVoxelGrid s) a
 {-# INLINE modify #-}
 
 -- | /O(n)/ Pair each element in a grid with its index
 indexed :: Unbox a => VoxelGrid a -> VoxelGrid (V3 Int, a)
-indexed = undefined
+indexed (VoxelGrid s a) = VoxelGrid s $ V.map (first (indexToPos s)) . V.indexed $ a
 {-# INLINE indexed #-}
 
 -- | /O(n)/ Map a function over a grid
 map :: (Unbox a, Unbox b) => (a -> b) -> VoxelGrid a -> VoxelGrid b
-map = undefined
+map f (VoxelGrid s a) = VoxelGrid s $ V.map f a
 {-# INLINE map #-}
 
 -- | /O(n)/ Apply a function to every element of a vector and its index
 imap :: (Unbox a, Unbox b) => (V3 Int -> a -> b) -> VoxelGrid a -> VoxelGrid b
-imap = undefined
+imap f (VoxelGrid s a) = VoxelGrid s $ V.imap (f . indexToPos s) a
 {-# INLINE imap #-}
 
 -- | /O(n)/ Apply the monadic action to all elements of the vector, yielding a vector of results
 mapM :: (Monad m, Unbox a, Unbox b) => (a -> m b) -> VoxelGrid a -> m (VoxelGrid b)
-mapM = undefined
+mapM f (VoxelGrid s a) = fmap (VoxelGrid s) $ V.mapM f a
 {-# INLINE mapM #-}
 
 -- | /O(n)/ Apply the monadic action to every element of a vector and its index, yielding a vector of results
 imapM :: (Monad m, Unbox a, Unbox b) => (V3 Int -> a -> m b) -> VoxelGrid a -> m (VoxelGrid b)
-imapM = undefined
+imapM f (VoxelGrid s a) = fmap (VoxelGrid s) $ V.imapM (f . indexToPos s) a
 {-# INLINE imapM #-}
 
 -- | /O(n)/ Apply the monadic action to all elements of the vector, yielding a vector of results
 mapM_ :: (Monad m, Unbox a) => (a -> m b) -> VoxelGrid a -> m ()
-mapM_ = undefined
+mapM_ f (VoxelGrid _ a) = V.mapM_ f a
 {-# INLINE mapM_ #-}
 
 -- | /O(n)/ Apply the monadic action to every element of a vector and its index, yielding a vector of results
 imapM_ :: (Monad m, Unbox a) => (V3 Int -> a -> m b) -> VoxelGrid a -> m ()
-imapM_ = undefined
+imapM_ f (VoxelGrid s a) = V.imapM_ (f . indexToPos s) a
 {-# INLINE imapM_ #-}
 
 -- | /O(n)/ Apply the monadic action to all elements of the vector, yielding a vector of results. Equivalent to flip 'mapM'.
 forM :: (Monad m, Unbox a, Unbox b) => VoxelGrid a -> (a -> m b) -> m (VoxelGrid b)
-forM = undefined
+forM (VoxelGrid s a) f = fmap (VoxelGrid s) $ V.forM a f
 {-# INLINE forM #-}
 
 -- | /O(n)/ Apply the monadic action to all elements of the vector, yielding a vector of results. Equivalent to flip 'mapM_'.
 forM_ :: (Monad m, Unbox a) => VoxelGrid a -> (a -> m b) -> m ()
-forM_ = undefined
+forM_ (VoxelGrid _ a) f = V.forM_ a f
 {-# INLINE forM_ #-}
 
 infix 4 `elem`
