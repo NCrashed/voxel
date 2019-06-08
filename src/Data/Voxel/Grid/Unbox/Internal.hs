@@ -3,8 +3,9 @@ module Data.Voxel.Grid.Unbox.Internal where
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.ST
 import Data.Vector.Unboxed (Unbox, Vector)
-import Data.Voxel.Grid.Unbox.Mutable.Internal (MVoxelGrid)
+import Data.Voxel.Grid.Unbox.Mutable.Internal (MVoxelGrid, posToIndex, indexToPos, posInBounds)
 import Linear
+import Prelude as P
 
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as VM
@@ -35,47 +36,54 @@ length g = s * s * s
 
 -- | /O(1)/ indexing
 (!) :: Unbox a => VoxelGrid a -> V3 Int -> a
-(!) = undefined
+(!) (VoxelGrid s v) i
+  | posInBounds s i = v V.! posToIndex s i
+  | otherwise = error $ "(!) pos " <> show i <> " is out of bounds"
 {-# INLINE (!) #-}
 
 -- | /O(1)/ safe indexing
 (!?) :: Unbox a => VoxelGrid a -> V3 Int -> Maybe a
-(!?) = undefined
+(!?) (VoxelGrid s v) i
+  | posInBounds s i = v V.!? posToIndex s i
+  | otherwise = Nothing
 {-# INLINE (!?) #-}
 
 -- | /O(1)/ indexing without bound checks
 unsafeIndex :: Unbox a => VoxelGrid a -> V3 Int -> a
-unsafeIndex = undefined
+unsafeIndex (VoxelGrid s v) i = V.unsafeIndex v (posToIndex s i)
 {-# INLINE unsafeIndex #-}
 
 -- | /O(1)/ Create new empty grid with given size
 empty :: Unbox a => Int -> VoxelGrid a
-empty = undefined
+empty s = VoxelGrid s V.empty
 {-# INLINE empty #-}
 
 -- | /O(n)/ Create new grid filled with value
 replicate :: Unbox a => Int -> a -> VoxelGrid a
-replicate = undefined
+replicate s a = VoxelGrid s (V.replicate (s*s*s) a)
 {-# INLINE replicate #-}
 
 -- | /O(n)/ Create new grid by applying the function to each position
 generate :: Unbox a => Int -> (V3 Int -> a) -> VoxelGrid a
-generate = undefined
+generate s f = VoxelGrid s $ V.generate (s*s*s) (f . indexToPos s)
 {-# INLINE generate #-}
 
 -- | /O(n)/ Execute the monadic action the given number of times and store the results in a grid
 replicateM :: (Monad m, Unbox a) => Int -> m a -> m (VoxelGrid a)
-replicateM = undefined
+replicateM s f = fmap (VoxelGrid s) $ V.replicateM (s*s*s) f
 {-# INLINE replicateM #-}
 
 -- | /O(n)/ Construct grid of given length by applying monadic action to each index
 generateM :: (Monad m, Unbox a) => Int -> (V3 Int -> m a) -> m (VoxelGrid a)
-generateM = undefined
+generateM s f = fmap (VoxelGrid s) $ V.generateM (s*s*s) (f . indexToPos s)
 {-# INLINE generateM #-}
 
 -- | Execute monadic action and freeze resulted grid.
-create :: Unbox a => (forall s . ST s (MVoxelGrid s a)) -> m (VoxelGrid a)
-create _ = undefined
+create :: Unbox a => (forall s . ST s (MVoxelGrid s a)) -> VoxelGrid a
+create m = VoxelGrid s v
+  where
+    v = V.create (GM.voxelGridData <$> m)
+    s = round $ (fromIntegral (V.length v) :: Double) ** (1/3)
 {-# INLINE create #-}
 
 -- | /O(m+n)/ For each pair (i,a) from the list, replace the grid element at position i by a.
@@ -371,12 +379,16 @@ fold1M'_ = undefined
 
 -- | /O(n)/ Convert a grid to a list
 toList :: Unbox a => VoxelGrid a -> [a]
-toList = undefined
+toList (VoxelGrid _ a) = V.toList a
 {-# INLINE toList #-}
 
--- | /O(n)/ Convert a list to a grid
+-- | /O(n)/ Convert a list to a grid. Will fail if the list contains less elements
+-- than size^3.
 fromList :: Unbox a => Int -> [a] -> VoxelGrid a
-fromList = undefined
+fromList s as
+  | P.length as >= s*s*s = VoxelGrid s $ V.fromList as
+  | otherwise = error $ "fromList: too little elements, expected "
+      ++ show (s*s*s) ++ " but got " ++ show (P.length as)
 {-# INLINE fromList #-}
 
 -- | /O(1)/ Unsafe convert a mutable grid to an immutable one without

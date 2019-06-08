@@ -59,6 +59,7 @@ test-suite test-voxel
   main-is:             Main.hs
   other-modules:
     Data.Voxel.Grid.Unbox.MutableTest
+    Data.Voxel.Grid.UnboxTest
     Test.Util
   build-depends:
       base

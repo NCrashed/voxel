@@ -10,8 +10,8 @@ import Test.Util
 import Data.Voxel.Grid.Unbox.Mutable (MVoxelGrid, IOVoxelGrid)
 import qualified Data.Voxel.Grid.Unbox.Mutable.Internal as GM
 
-unit_newSizes :: IO ()
-unit_newSizes = traverse_ single [0, 1, 3, 16, 32, 64, 128]
+unit_mutable_newSizes :: IO ()
+unit_mutable_newSizes = traverse_ single [0, 1, 3, 16, 32, 64, 128]
   where
     single n = do
       g :: IOVoxelGrid Int <- GM.new n
@@ -23,8 +23,8 @@ prop_indeciesIdenmponent n i
   | n == 0 = True
   | otherwise = GM.posToIndex n (GM.indexToPos n i) == i
 
-unit_indecies :: IO ()
-unit_indecies = do
+unit_mutable_indecies :: IO ()
+unit_mutable_indecies = do
   assertEqual "index 3 {0;0;0}" 0 $ GM.posToIndex 3 (V3 0 0 0)
   assertEqual "index 3 {1;0;0}" 1 $ GM.posToIndex 3 (V3 1 0 0)
   assertEqual "index 3 {2;0;0}" 2 $ GM.posToIndex 3 (V3 2 0 0)
@@ -53,8 +53,8 @@ unit_indecies = do
   assertEqual "index 3 {1;2;2}" 25 $ GM.posToIndex 3 (V3 1 2 2)
   assertEqual "index 3 {2;2;2}" 26 $ GM.posToIndex 3 (V3 2 2 2)
 
-unit_indeciesBounds :: IO ()
-unit_indeciesBounds = do
+unit_mutable_indeciesBounds :: IO ()
+unit_mutable_indeciesBounds = do
   assertBool "in bounds 1 {0;0;0}" $ GM.posInBounds 1 (V3 0 0 0)
   assertBool "not in bounds (-1) {0;0;0}" $ not $ GM.posInBounds (-1) (V3 0 0 0)
   assertBool "not in bounds (-3) {-1;-1;-1}" $ not $ GM.posInBounds (-3) (V3 (-1) (-1) (-1))
@@ -71,8 +71,8 @@ unit_indeciesBounds = do
   assertBool "in bounds 10 {9;9;9}" $ GM.posInBounds 10 (V3 9 9 9)
   assertBool "in bounds max {max-1;max-1;max-1}" $ GM.posInBounds maxBound (V3 (maxBound-1) (maxBound-1) (maxBound-1))
 
-unit_readWrite :: IO ()
-unit_readWrite = traverse_ single [(s, GM.indexToPos s i, a)|
+unit_mutable_readWrite :: IO ()
+unit_mutable_readWrite = traverse_ single [(s, GM.indexToPos s i, a)|
     s <- sizes
   , i <- [0 .. s*s*s-1]
   , a <- values]
@@ -85,8 +85,8 @@ unit_readWrite = traverse_ single [(s, GM.indexToPos s i, a)|
       a' <- GM.read g i
       assertEqual "read write" a a'
 
-unit_readWriteUnbound :: IO ()
-unit_readWriteUnbound = do
+unit_mutable_readWriteUnbound :: IO ()
+unit_mutable_readWriteUnbound = do
   single 0 1
   single 1 (-1)
   single 1 1
@@ -102,8 +102,8 @@ unit_readWriteUnbound = do
       a' <- GM.read g i
       assertEqual "read write" a a'
 
-unit_swaps :: IO ()
-unit_swaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a2)|
+unit_mutable_swaps :: IO ()
+unit_mutable_swaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a2)|
     s <- sizes
   , i1 <- [0 .. s*s*s-1]
   , let i2 = s*s*s - 1 - i1
@@ -123,8 +123,8 @@ unit_swaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a
       assertEqual ("a1 for " ++ show args) a2 a1'
       assertEqual ("a2 for " ++ show args) a1 a2'
 
-unit_unsafeReadWrite :: IO ()
-unit_unsafeReadWrite = traverse_ single [(s, GM.indexToPos s i, a)|
+unit_mutable_unsafeReadWrite :: IO ()
+unit_mutable_unsafeReadWrite = traverse_ single [(s, GM.indexToPos s i, a)|
     s <- sizes
   , i <- [0 .. s*s*s-1]
   , a <- values]
@@ -137,8 +137,8 @@ unit_unsafeReadWrite = traverse_ single [(s, GM.indexToPos s i, a)|
       a' <- GM.unsafeRead g i
       assertEqual "read write" a a'
 
-unit_unsafeSwaps :: IO ()
-unit_unsafeSwaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a2)|
+unit_mutable_unsafeSwaps :: IO ()
+unit_mutable_unsafeSwaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a2)|
     s <- sizes
   , i1 <- [0 .. s*s*s-1]
   , let i2 = s*s*s - 1 - i1
