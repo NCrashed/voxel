@@ -35,3 +35,4 @@ new n = MMesh
   <*> MV.new k
   where
     k = n * 3
+{-# INLINE new #-}
