@@ -41,6 +41,8 @@ library
     Data.Voxel.Grid.Unbox.Polygon
     Data.Voxel.Mesh
     Data.Voxel.Mesh.Internal
+    Data.Voxel.Mesh.Mutable
+    Data.Voxel.Mesh.Mutable.Internal
   build-depends:
       base            >= 4.5    && < 4.14
     , linear          >= 1.20   && < 1.21
