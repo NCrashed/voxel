@@ -31,11 +31,16 @@ source-repository head
 library
   hs-source-dirs:      src
   exposed-modules:
+    Data.Voxel.Buffer.Index
+    Data.Voxel.Buffer.Vertex
     Data.Voxel.Grid
     Data.Voxel.Grid.Unbox
     Data.Voxel.Grid.Unbox.Internal
     Data.Voxel.Grid.Unbox.Mutable
     Data.Voxel.Grid.Unbox.Mutable.Internal
+    Data.Voxel.Grid.Unbox.Polygon
+    Data.Voxel.Mesh
+    Data.Voxel.Mesh.Internal
   build-depends:
       base            >= 4.5    && < 4.14
     , linear          >= 1.20   && < 1.21

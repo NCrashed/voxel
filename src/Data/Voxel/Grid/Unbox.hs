@@ -86,7 +86,10 @@ module Data.Voxel.Grid.Unbox(
   , unsafeFreeze
   , unsafeThaw
   , unsafeCopy
+  -- * Triangulation
+  , triangulate
   ) where
 
 import Prelude()
 import Data.Voxel.Grid.Unbox.Internal
+import Data.Voxel.Grid.Unbox.Polygon
