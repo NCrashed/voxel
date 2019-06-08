@@ -9,7 +9,6 @@ import Linear
 import Prelude as P
 
 import qualified Data.Vector.Unboxed as V
-import qualified Data.Vector.Unboxed.Mutable as VM
 import qualified Data.Voxel.Grid.Unbox.Mutable.Internal as GM
 
 -- | Immutable square 3D grid of unboxed data.
@@ -397,34 +396,36 @@ fromList s as
 -- | /O(1)/ Unsafe convert a mutable grid to an immutable one without
 -- copying. The mutable grid may not be used after this operation.
 unsafeFreeze :: (Unbox a, PrimMonad m) => MVoxelGrid (PrimState m) a -> m (VoxelGrid a)
-unsafeFreeze = undefined
+unsafeFreeze (GM.MVoxelGrid s mv) = VoxelGrid s <$> V.unsafeFreeze mv
 {-# INLINE unsafeFreeze #-}
 
 -- | /O(1)/ Unsafely convert an immutable grid to a mutable one without
 -- copying. The immutable grid may not be used after this operation.
 unsafeThaw :: (Unbox a, PrimMonad m) => VoxelGrid a -> m (MVoxelGrid (PrimState m) a)
-unsafeThaw = undefined
+unsafeThaw (VoxelGrid s v) = GM.MVoxelGrid s <$> V.unsafeThaw v
 {-# INLINE unsafeThaw #-}
 
 -- | /O(n)/ Yield a mutable copy of the immutable grid.
 thaw :: (Unbox a, PrimMonad m) => VoxelGrid a -> m (MVoxelGrid (PrimState m) a)
-thaw = undefined
+thaw (VoxelGrid s v) = GM.MVoxelGrid s <$> V.thaw v
 {-# INLINE thaw #-}
 
 -- | /O(n)/ Yield an immutable copy of the mutable grid.
 freeze :: (Unbox a, PrimMonad m) => MVoxelGrid (PrimState m) a -> m (VoxelGrid a)
-freeze = undefined
+freeze (GM.MVoxelGrid s mv) = VoxelGrid s <$> V.freeze mv
 {-# INLINE freeze #-}
 
 -- | /O(n)/ Copy an immutable grid into a mutable one. The two grids must
 -- have the same length. This is not checked.
 unsafeCopy
   :: (Unbox a, PrimMonad m) => MVoxelGrid (PrimState m) a -> VoxelGrid a -> m ()
-unsafeCopy = undefined
+unsafeCopy (GM.MVoxelGrid _ mv) (VoxelGrid _ v) = V.unsafeCopy mv v
 {-# INLINE unsafeCopy #-}
 
 -- | /O(n)/ Copy an immutable grid into a mutable one. The two grids must
 -- have the same length.
 copy :: (Unbox a, PrimMonad m) => MVoxelGrid (PrimState m) a -> VoxelGrid a -> m ()
-copy = undefined
+copy (GM.MVoxelGrid s1 mv) (VoxelGrid s2 v)
+  | s1 == s2 = V.copy mv v
+  | otherwise = fail $ "copy: grid sizes don't match " <> show s1 <> " /= " <> show s2
 {-# INLINE copy #-}
