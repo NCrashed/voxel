@@ -35,9 +35,9 @@ module Data.Voxel.Grid.Unbox(
   , notElem
   , find
   , findIndex
-  , findIndecies
+  , findIndices
   , elemIndex
-  , elemIndecies
+  , elemIndices
   -- * Folding
   , foldl
   , foldl1

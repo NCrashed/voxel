@@ -159,225 +159,225 @@ forM_ (VoxelGrid _ a) f = V.forM_ a f
 infix 4 `elem`
 -- | /O(n)/ Check if the grid contains an element
 elem :: (Unbox a, Eq a) => a -> VoxelGrid a -> Bool
-elem = undefined
+elem a (VoxelGrid _ v) = V.elem a v
 {-# INLINE elem #-}
 
 infix 4 `notElem`
 -- | /O(n)/ Check if the grid does not contain an element (inverse of 'elem')
 notElem :: (Unbox a, Eq a) => a -> VoxelGrid a -> Bool
-notElem = undefined
+notElem a (VoxelGrid _ v) = V.notElem a v
 {-# INLINE notElem #-}
 
 -- | /O(n)/ Yield 'Just' the first element matching the predicate or 'Nothing'
 -- if no such element exists.
 find :: Unbox a => (a -> Bool) -> VoxelGrid a -> Maybe a
-find = undefined
+find f (VoxelGrid _ v) = V.find f v
 {-# INLINE find #-}
 
 -- | /O(n)/ Yield 'Just' the index of the first element matching the predicate
 -- or 'Nothing' if no such element exists.
-findIndex :: Unbox a => (a -> Bool) -> VoxelGrid a -> Maybe Int
-findIndex = undefined
+findIndex :: Unbox a => (a -> Bool) -> VoxelGrid a -> Maybe (V3 Int)
+findIndex f (VoxelGrid s v) = fmap (indexToPos s) $ V.findIndex f v
 {-# INLINE findIndex #-}
 
 -- | /O(n)/ Yield the indices of elements satisfying the predicate in ascending
 -- order.
-findIndecies :: Unbox a => (a -> Bool) -> VoxelGrid a -> Vector Int
-findIndecies = undefined
-{-# INLINE findIndecies #-}
+findIndices :: Unbox a => (a -> Bool) -> VoxelGrid a -> Vector (V3 Int)
+findIndices f (VoxelGrid s v) = V.map (indexToPos s) $ V.findIndices f v
+{-# INLINE findIndices #-}
 
 -- | /O(n)/ Yield 'Just' the index of the first occurence of the given element or
 -- 'Nothing' if the grid does not contain the element. This is a specialised
 -- version of 'findIndex'.
-elemIndex :: (Unbox a, Eq a) => a -> VoxelGrid a -> Maybe Int
-elemIndex = undefined
+elemIndex :: (Unbox a, Eq a) => a -> VoxelGrid a -> Maybe (V3 Int)
+elemIndex a (VoxelGrid s v) = fmap (indexToPos s) $ V.elemIndex a v
 {-# INLINE elemIndex #-}
 
 -- | O(n) Yield the indices of all occurences of the given element in ascending
 -- order. This is a specialised version of findIndices.
-elemIndecies :: (Unbox a, Eq a) => a -> VoxelGrid a -> VoxelGrid Int
-elemIndecies = undefined
-{-# INLINE elemIndecies #-}
+elemIndices :: (Unbox a, Eq a) => a -> VoxelGrid a -> Vector (V3 Int)
+elemIndices a (VoxelGrid s v) = V.map (indexToPos s) $ V.elemIndices a v
+{-# INLINE elemIndices #-}
 
 -- | /O(n)/ Left fold
 foldl :: Unbox b => (a -> b -> a) -> a -> VoxelGrid b -> a
-foldl = undefined
+foldl f a (VoxelGrid _ v) = V.foldl f a v
 {-# INLINE foldl #-}
 
 -- | /O(n)/ Left fold on non-empty vectors
 foldl1 :: Unbox a => (a -> a -> a) -> VoxelGrid a -> a
-foldl1 = undefined
+foldl1 f (VoxelGrid _ v) = V.foldl1 f v
 {-# INLINE foldl1 #-}
 
 -- | /O(n)/ Left fold with strict accumulator
 foldl' :: Unbox b => (a -> b -> a) -> a -> VoxelGrid b -> a
-foldl' = undefined
+foldl' f a (VoxelGrid _ v) = V.foldl' f a v
 {-# INLINE foldl' #-}
 
 -- | /O(n)/ Left fold on non-empty vectors with strict accumulator
 foldl1' :: Unbox a => (a -> a -> a) -> VoxelGrid a -> a
-foldl1' = undefined
+foldl1' f (VoxelGrid _ v) = V.foldl1' f v
 {-# INLINE foldl1' #-}
 
 -- | /O(n)/ Right fold
 foldr :: Unbox a => (a -> b -> b) -> b -> VoxelGrid a -> b
-foldr = undefined
+foldr f b (VoxelGrid _ v) = V.foldr f b v
 {-# INLINE foldr #-}
 
 -- | /O(n)/ Right fold on non-empty vectors
 foldr1 :: Unbox a => (a -> a -> a) -> VoxelGrid a -> a
-foldr1 = undefined
+foldr1 f (VoxelGrid _ v) = V.foldr1 f v
 {-# INLINE foldr1 #-}
 
 -- | /O(n)/ Right fold with a strict accumulator
 foldr' :: Unbox a => (a -> b -> b) -> b -> VoxelGrid a -> b
-foldr' = undefined
+foldr' f b (VoxelGrid _ v) = V.foldr' f b v
 {-# INLINE foldr' #-}
 
 -- | /O(n)/ Right fold on non-empty vectors with strict accumulator
 foldr1' :: Unbox a => (a -> a -> a) -> VoxelGrid a -> a
-foldr1' = undefined
+foldr1' f (VoxelGrid _ v) = V.foldr1' f v
 {-# INLINE foldr1' #-}
 
 -- | /O(n)/ Left fold (function applied to each element and its index)
 ifoldl :: Unbox b => (a -> V3 Int -> b -> a) -> a -> VoxelGrid b -> a
-ifoldl = undefined
+ifoldl f a0 (VoxelGrid s v) = V.ifoldl (\a i -> f a (indexToPos s i)) a0 v
 {-# INLINE ifoldl #-}
 
 -- | /O(n)/ Left fold with strict accumulator (function applied to each element
 -- and its index)
 ifoldl' :: Unbox b => (a -> V3 Int -> b -> a) -> a -> VoxelGrid b -> a
-ifoldl' = undefined
+ifoldl' f a0 (VoxelGrid s v) = V.ifoldl' (\a i -> f a (indexToPos s i)) a0 v
 {-# INLINE ifoldl' #-}
 
 -- | /O(n)/ Right fold (function applied to each element and its index)
 ifoldr :: Unbox a => (V3 Int -> a -> b -> b) -> b -> VoxelGrid a -> b
-ifoldr = undefined
+ifoldr f b0 (VoxelGrid s v) = V.ifoldr (f . indexToPos s) b0 v
 {-# INLINE ifoldr #-}
 
 -- | /O(n)/ Right fold with strict accumulator (function applied to each
 -- element and its index)
 ifoldr' :: Unbox a => (V3 Int -> a -> b -> b) -> b -> VoxelGrid a -> b
-ifoldr' = undefined
+ifoldr' f b0 (VoxelGrid s v) = V.ifoldr' (f . indexToPos s) b0 v
 {-# INLINE ifoldr' #-}
 
 -- | /O(n)/ Check if all elements satisfy the predicate.
 all :: Unbox a => (a -> Bool) -> VoxelGrid a -> Bool
-all = undefined
+all f (VoxelGrid _ v) = V.all f v
 {-# INLINE all #-}
 
 -- | /O(n)/ Check if any element satisfies the predicate.
 any :: Unbox a => (a -> Bool) -> VoxelGrid a -> Bool
-any = undefined
+any f (VoxelGrid _ v) = V.any f v
 {-# INLINE any #-}
 
 -- | /O(n)/ Yield the maximum element of the grid.
 maximum :: (Unbox a, Ord a) => VoxelGrid a -> a
-maximum = undefined
+maximum (VoxelGrid _ v) = V.maximum v
 {-# INLINE maximum #-}
 
 -- | /O(n)/ Yield the maximum element of the grid according to the given
 -- comparison function.
 maximumBy :: Unbox a => (a -> a -> Ordering) -> VoxelGrid a -> a
-maximumBy = undefined
+maximumBy f (VoxelGrid _ v) = V.maximumBy f v
 {-# INLINE maximumBy #-}
 
 -- | /O(n)/ Yield the minimum element of the grid.
 minimum :: (Unbox a, Ord a) => VoxelGrid a -> a
-minimum = undefined
+minimum (VoxelGrid _ v) = V.minimum v
 {-# INLINE minimum #-}
 
 -- | /O(n)/ Yield the minimum element of the grid according to the given
 -- comparison function.
 minimumBy :: Unbox a => (a -> a -> Ordering) -> VoxelGrid a -> a
-minimumBy = undefined
+minimumBy f (VoxelGrid _ v) = V.minimumBy f v
 {-# INLINE minimumBy #-}
 
 -- | /O(n)/ Yield the index of the maximum element of the grid.
-maxIndex :: (Unbox a, Ord a) => VoxelGrid a -> Int
-maxIndex = undefined
+maxIndex :: (Unbox a, Ord a) => VoxelGrid a -> V3 Int
+maxIndex (VoxelGrid s v) = indexToPos s $ V.maxIndex v
 {-# INLINE maxIndex #-}
 
 -- | /O(n)/ Yield the index of the maximum element of the grid according to
 -- the given comparison function.
-maxIndexBy :: Unbox a => (a -> a -> Ordering) -> VoxelGrid a -> Int
-maxIndexBy = undefined
+maxIndexBy :: Unbox a => (a -> a -> Ordering) -> VoxelGrid a -> V3 Int
+maxIndexBy f (VoxelGrid s v) = indexToPos s $ V.maxIndexBy f v
 {-# INLINE maxIndexBy #-}
 
 -- | /O(n)/ Yield the index of the minimum element of the grid.
-minIndex :: (Unbox a, Ord a) => VoxelGrid a -> Int
-minIndex = undefined
+minIndex :: (Unbox a, Ord a) => VoxelGrid a -> V3 Int
+minIndex (VoxelGrid s v) = indexToPos s $ V.minIndex v
 {-# INLINE minIndex #-}
 
 -- | /O(n)/ Yield the index of the minimum element of the grid according to
 -- the given comparison function.
-minIndexBy :: Unbox a => (a -> a -> Ordering) -> VoxelGrid a -> Int
-minIndexBy = undefined
+minIndexBy :: Unbox a => (a -> a -> Ordering) -> VoxelGrid a -> V3 Int
+minIndexBy f (VoxelGrid s v) = indexToPos s $ V.minIndexBy f v
 {-# INLINE minIndexBy #-}
 
 -- | /O(n)/ Monadic fold
 foldM :: (Monad m, Unbox b) => (a -> b -> m a) -> a -> VoxelGrid b -> m a
-foldM = undefined
+foldM f a (VoxelGrid _ v) = V.foldM f a v
 {-# INLINE foldM #-}
 
 -- | /O(n)/ Monadic fold (action applied to each element and its index)
 ifoldM :: (Monad m, Unbox b) => (a -> V3 Int -> b -> m a) -> a -> VoxelGrid b -> m a
-ifoldM = undefined
+ifoldM f a0 (VoxelGrid s v) = V.ifoldM (\a i -> f a (indexToPos s i)) a0 v
 {-# INLINE ifoldM #-}
 
 -- | /O(n)/ Monadic fold over non-empty vectors
 fold1M :: (Monad m, Unbox a) => (a -> a -> m a) -> VoxelGrid a -> m a
-fold1M = undefined
+fold1M f (VoxelGrid _ v) = V.fold1M f v
 {-# INLINE fold1M #-}
 
 -- | /O(n)/ Monadic fold with strict accumulator
 foldM' :: (Monad m, Unbox b) => (a -> b -> m a) -> a -> VoxelGrid b -> m a
-foldM' = undefined
+foldM' f a (VoxelGrid _ v) = V.foldM' f a v
 {-# INLINE foldM' #-}
 
 -- | /O(n)/ Monadic fold with strict accumulator (action applied to each
 -- element and its index)
 ifoldM' :: (Monad m, Unbox b) => (a -> V3 Int -> b -> m a) -> a -> VoxelGrid b -> m a
-ifoldM' = undefined
+ifoldM' f a0 (VoxelGrid s v) = V.ifoldM' (\a i -> f a (indexToPos s i)) a0 v
 {-# INLINE ifoldM' #-}
 
 -- | /O(n)/ Monadic fold over non-empty vectors with strict accumulator
 fold1M' :: (Monad m, Unbox a) => (a -> a -> m a) -> VoxelGrid a -> m a
-fold1M' = undefined
+fold1M' f (VoxelGrid _ v) = V.fold1M' f v
 {-# INLINE fold1M' #-}
 
 -- | /O(n)/ Monadic fold that discards the result
 foldM_ :: (Monad m, Unbox b) => (a -> b -> m a) -> a -> VoxelGrid b -> m ()
-foldM_ = undefined
+foldM_ f a (VoxelGrid _ v) = V.foldM_ f a v
 {-# INLINE foldM_ #-}
 
 -- | /O(n)/ Monadic fold that discards the result (action applied to each
 -- element and its index)
 ifoldM_ :: (Monad m, Unbox b) => (a -> V3 Int -> b -> m a) -> a -> VoxelGrid b -> m ()
-ifoldM_ = undefined
+ifoldM_ f a0 (VoxelGrid s v) = V.ifoldM_ (\a i -> f a (indexToPos s i)) a0 v
 {-# INLINE ifoldM_ #-}
 
 -- | /O(n)/ Monadic fold over non-empty vectors that discards the result
 fold1M_ :: (Monad m, Unbox a) => (a -> a -> m a) -> VoxelGrid a -> m ()
-fold1M_ = undefined
+fold1M_ f (VoxelGrid _ v) = V.fold1M_ f v
 {-# INLINE fold1M_ #-}
 
 -- | /O(n)/ Monadic fold with strict accumulator that discards the result
 foldM'_ :: (Monad m, Unbox b) => (a -> b -> m a) -> a -> VoxelGrid b -> m ()
-foldM'_ = undefined
+foldM'_ f a (VoxelGrid _ v) = V.foldM'_ f a v
 {-# INLINE foldM'_ #-}
 
 -- | /O(n)/ Monadic fold with strict accumulator that discards the result
 -- (action applied to each element and its index)
 ifoldM'_ :: (Monad m, Unbox b)
          => (a -> V3 Int -> b -> m a) -> a -> VoxelGrid b -> m ()
-ifoldM'_ = undefined
+ifoldM'_ f a0 (VoxelGrid s v) = V.ifoldM'_ (\a i -> f a (indexToPos s i)) a0 v
 {-# INLINE ifoldM'_ #-}
 
 -- | /O(n)/ Monadic fold over non-empty vectors with strict accumulator
 -- that discards the result
 fold1M'_ :: (Monad m, Unbox a) => (a -> a -> m a) -> VoxelGrid a -> m ()
-fold1M'_ = undefined
+fold1M'_ f (VoxelGrid _ v) = V.fold1M'_ f v
 {-# INLINE fold1M'_ #-}
 
 -- | /O(n)/ Convert a grid to a list
