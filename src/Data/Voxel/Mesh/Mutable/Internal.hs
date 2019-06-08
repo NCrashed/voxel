@@ -1,7 +1,4 @@
-module Data.Voxel.Mesh.Mutable.Internal(
-    MMesh(..)
-  , new
-  ) where
+module Data.Voxel.Mesh.Mutable.Internal where
 
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Data.Vector.Storable.Mutable (MVector, Storable)
