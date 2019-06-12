@@ -20,6 +20,8 @@ let
   haskOverrides = new: old: rec {
     voxel = new.callCabal2nix "voxel" (ignore ./.) {};
     voxel-viewer = new.callCabal2nix "voxel-viewer" (ignore ./voxel-viewer) {};
+    GPipe = new.callPackage ./derivations/GPipe.nix {};
+    GPipe-GLFW = new.callCabal2nix "GPipe-GLFW" (ignore ./GPipe-GLFW) {};
   };
 in {
   inherit pkgs;
