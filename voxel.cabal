@@ -11,7 +11,7 @@ description:
   See README.md
 license:             MIT
 license-file:        LICENSE
-copyright:           2018 Anton Gushcha
+copyright:           2019 Anton Gushcha
 maintainer:          Anton Gushcha <ncrashed@protonmail.com>
 category:            Data
 build-type:          Simple
@@ -26,7 +26,7 @@ tested-with:
 
 source-repository head
   type: git
-  location: https://github.com/NCrashed/aeson-injector
+  location: https://github.com/NCrashed/voxel
 
 library
   hs-source-dirs:      src

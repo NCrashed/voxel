@@ -19,8 +19,9 @@ let
     '';
   haskOverrides = new: old: rec {
     voxel = new.callCabal2nix "voxel" (ignore ./.) {};
+    voxel-viewer = new.callCabal2nix "voxel-viewer" (ignore ./voxel-viewer) {};
   };
 in {
-  inherit pkgs; 
-  packages = { inherit (pkgs.haskellPackages) voxel; };
+  inherit pkgs;
+  packages = { inherit (pkgs.haskellPackages) voxel voxel-viewer; };
 }
