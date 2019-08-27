@@ -19,11 +19,12 @@ let
     '';
   haskOverrides = new: old: rec {
     voxel = new.callCabal2nix "voxel" (ignore ./.) {};
+    voxel-GPipe = new.callCabal2nix "voxel-GPipe" (ignore ./voxel-GPipe) {};
     voxel-viewer = new.callCabal2nix "voxel-viewer" (ignore ./voxel-viewer) {};
     GPipe = new.callPackage ./derivations/GPipe.nix {};
     GPipe-GLFW = new.callCabal2nix "GPipe-GLFW" (ignore ./GPipe-GLFW) {};
   };
 in {
   inherit pkgs;
-  packages = { inherit (pkgs.haskellPackages) voxel voxel-viewer; };
+  packages = { inherit (pkgs.haskellPackages) voxel voxel-GPipe voxel-viewer; };
 }

@@ -1,8 +1,8 @@
-name:                voxel-viewer
+name:                voxel-GPipe
 version:             0.0.1.0
-synopsis:            GPipe based viewer of voxel models.
+synopsis:            Utilites to work with voxel models with GPipe.
 description:
-  Voxel viewer that allows to preview generated meshes from [voxel](http://hackage.haskell.org/package/voxel) library.
+  Utilities that allow to convert meshes from [voxel](http://hackage.haskell.org/package/voxel) library to [GPipe](http://hackage.haskell.org/package/GPipe) format.
 license:             MIT
 license-file:        LICENSE
 copyright:           2019 Anton Gushcha
@@ -25,7 +25,8 @@ source-repository head
 library
   hs-source-dirs:      src
   exposed-modules:
-    Data.Voxel.Viewer
+    Data.Voxel.GPipe.Mesh
+    Data.Voxel.GPipe
   build-depends:
       base            >= 4.5      && < 4.14
     , GPipe           >= 2.2.4    && < 2.3
@@ -34,7 +35,6 @@ library
     , linear          >= 1.20     && < 1.21
     , vector          >= 0.10     && < 0.13
     , voxel           >= 0.0      && < 0.1
-    , voxel-GPipe     >= 0.0      && < 0.1
   default-language:    Haskell2010
   default-extensions:
     BangPatterns
@@ -46,12 +46,3 @@ library
     ScopedTypeVariables
     TupleSections
     TypeFamilies
-
-executable voxel-viewer
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-A64m -with-rtsopts=-AL128m -with-rtsopts=-qb0
-  build-depends:
-      base
-    , voxel-viewer
-  default-language:    Haskell2010
