@@ -73,3 +73,25 @@ cube = Mesh {
     mkNormals u l = let n = normalize $ cross l u in replicate 4 n
     mkUvs = [ V2 0 1, V2 1 1, V2 0 0, V2 1 0 ]
     mkIndecies o = [ o, o+1, o+2, o+1, o+2, o+3 ]
+
+instance Storable a => Semigroup (Mesh a) where
+  a <> b = Mesh {
+      meshVertices  = meshVertices a <> meshVertices b
+    , meshNormals   = meshNormals a <> meshNormals b
+    , meshUvs       = meshUvs a <> meshUvs b
+    , meshIndecies  = meshIndecies a <> V.map (+ ni) (meshIndecies b)
+    , meshData      = meshData a <> meshData b
+    }
+    where
+      ni = fromIntegral . V.length . meshVertices $ a
+  {-# INLINE (<>) #-}
+
+instance Storable a => Monoid (Mesh a) where
+  mempty = Mesh {
+      meshVertices  = mempty
+    , meshNormals   = mempty
+    , meshUvs       = mempty
+    , meshIndecies  = mempty
+    , meshData      = mempty
+    }
+  {-# INLINE mempty #-}

@@ -8,13 +8,16 @@ import Data.Int
 import Data.Maybe
 import Data.Proxy
 import Data.Voxel.GPipe.Mesh
+import Data.Voxel.Grid.Unbox.Polygon
 import Data.Word
 import Debug.Trace
 import Graphics.GPipe
 
-import qualified Graphics.GPipe.Context.GLFW as GLFW
-import qualified Data.Voxel.Mesh as M
 import qualified Data.Vector.Storable as V
+import qualified Data.Voxel.Grid.Unbox as G
+import qualified Data.Voxel.Grid.Unbox.Mutable as GM
+import qualified Data.Voxel.Mesh as M
+import qualified Graphics.GPipe.Context.GLFW as GLFW
 
 runViewer :: IO ()
 runViewer = do
@@ -27,22 +30,30 @@ runViewer = do
           }
     win <- newWindow (WindowFormatColorDepth RGBA8 Depth16) wcfg
     -- Create vertex data buffers
-    buffers <- meshBuffers M.cube
-    traceM "!"
+    let model :: G.VoxelGrid (V3 Float)
+        model = G.create $ do
+          g <- GM.new 2
+          GM.write g (V3 0 0 0) $ V3 1.0 0.0 0.0
+          GM.write g (V3 1 0 0) $ V3 0.0 1.0 0.0
+          GM.write g (V3 0 1 0) $ V3 0.0 0.0 1.0
+          GM.write g (V3 0 0 1) $ V3 1.0 0.0 1.0
+          GM.write g (V3 1 0 1) $ V3 1.0 0.0 1.0
+          pure g
+    buffers <- meshBuffers $ triangulate model
     -- Make a Render action that returns a PrimitiveArray for the cube
-    let makePrimitives = meshBufferArray (Proxy :: Proxy Int32) buffers
+    let makePrimitives = meshBufferArray (Proxy :: Proxy (V3 Float)) buffers
 
     -- Create a buffer for the uniform values
     uniform :: Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float))) <- newBuffer 1
 
     -- Create the shader
     shader <- compileShader $ do
-      sides <- fmap makeSide <$> toPrimitiveStream primitives
+      sides <- toPrimitiveStream primitives
       (modelViewProj, normMat) <- getUniform (const (uniform, 0))
       let projectedSides = proj modelViewProj normMat <$> sides
 
       fragNormalsUV <- rasterize rasterOptions projectedSides
-      let litFrags = light . fst <$> fragNormalsUV
+      let litFrags = uncurry light <$> fragNormalsUV
           litFragsWithDepth = withRasterizedInfo
               (\a x -> (a, rasterizedFragCoord x ^. _z)) litFrags
           colorOption = ContextColorOption NoBlending (pure True)
@@ -56,7 +67,7 @@ runViewer = do
 loop :: Window os RGBAFloat Depth
   -> (ShaderEnvironment -> Render os ())
   -> Render
-       os (PrimitiveArray Triangles (MeshArray (ArrayOf Int32)))
+       os (PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float))))
   -> Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float)))
   -> Float
   -> ContextT GLFW.Handle os IO ()
@@ -84,22 +95,19 @@ loop win shader makePrimitives uniform ang = do
     loop win shader makePrimitives uniform ((ang + 0.005) `mod''` (2*pi))
 
 data ShaderEnvironment = ShaderEnvironment
-  { primitives :: PrimitiveArray Triangles (MeshArray (ArrayOf Int32))
+  { primitives :: PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float)))
   , rasterOptions :: (Side, ViewPort, DepthRange)
   }
-
--- Project the sides coordinates using the instance's normal and tangent
-makeSide :: MeshVertex a -> (V3 VFloat, V3 VFloat, V2 VFloat)
-makeSide MeshVertex{..} = (meshPrimPosition, meshPrimNormal, meshPrimUv)
 
 -- Project the cube's positions and normals with ModelViewProjection matrix
 proj :: V4 (V4 VFloat)
   -> V3 (V3 VFloat)
-  -> (V3 VFloat, V3 VFloat, b)
-  -> (V4 VFloat, (V3 FlatVFloat, b))
-proj modelViewProj normMat (V3 px py pz, normal, uv) =
-  (modelViewProj !* V4 px py pz 1, (fmap Flat $ normMat !* normal, uv))
+  -> MeshVertex a
+  -> (V4 VFloat, (V3 FlatVFloat, a))
+proj modelViewProj normMat MeshVertex{..} = let
+  V3 px py pz = meshPrimPosition
+  in (modelViewProj !* V4 px py pz 1, (fmap Flat $ normMat !* meshPrimNormal, meshPrimData))
 
 -- Set color from sampler and apply directional light
-light :: Num a => V3 a -> V4 a
-light normal = V4 1 0 0 1 * pure (normal `dot` V3 0 0 1)
+light :: Num a => V3 a -> V3 a -> V4 a
+light normal (V3 r g b) = V4 r g b 1 * pure (normal `dot` V3 0 0 1)

@@ -25,14 +25,39 @@ data MMesh s a = MMesh {
 
 -- | Allocate new mesh buffers of given size
 new :: (PrimMonad m, Storable a)
-  => Int -- ^ Amount of triangles
+  => Int -- ^ Amount of vertecies
+  -> Int -- ^ Amount of triangles
   -> m (MMesh (PrimState m) a)
-new n = MMesh
-  <$> MV.new k
-  <*> MV.new k
-  <*> MV.new k
-  <*> MV.new k
-  <*> MV.new k
-  where
-    k = n * 3
+new vn tn = MMesh
+  <$> MV.new vn
+  <*> MV.new vn
+  <*> MV.new vn
+  <*> MV.new (tn*3)
+  <*> MV.new vn
 {-# INLINE new #-}
+
+-- | Write single vertex into mesh
+writeVertex :: (PrimMonad m, Storable a)
+  => MMesh (PrimState m) a
+  -> Int -- ^ Index
+  -> V3 Float -- ^ Position
+  -> V3 Float -- ^ Normal
+  -> V2 Float -- ^ Uv
+  -> a -- ^ Data
+  -> m ()
+writeVertex MMesh{..} i p n u a = do
+  MV.write mmeshVertices i p
+  MV.write mmeshNormals i n
+  MV.write mmeshUvs i u
+  MV.write mmeshData i a
+
+-- | Write triangle to the
+writeIndex :: (PrimMonad m, Storable a)
+  => MMesh (PrimState m) a
+  -> Int -- ^ Index
+  -> V3 Word32
+  -> m ()
+writeIndex MMesh{..} i (V3 a b c) = do
+  MV.write mmeshIndecies (i*3) a
+  MV.write mmeshIndecies (i*3+1) b
+  MV.write mmeshIndecies (i*3+2) c

@@ -4,7 +4,10 @@ import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad.ST
 import Data.Bifunctor (first)
 import Data.Vector.Unboxed (Unbox, Vector)
+import Data.Voxel.Empty
 import Data.Voxel.Grid.Unbox.Mutable.Internal (MVoxelGrid, posToIndex, indexToPos, posInBounds)
+import Data.Voxel.Opaque
+import Data.Voxel.Side
 import Linear
 import Prelude as P
 
@@ -429,3 +432,16 @@ copy (GM.MVoxelGrid s1 mv) (VoxelGrid s2 v)
   | s1 == s2 = V.copy mv v
   | otherwise = fail $ "copy: grid sizes don't match " <> show s1 <> " /= " <> show s2
 {-# INLINE copy #-}
+
+-- | Is given voxel side visible (not occluded by other voxels)
+isVoxelSideVisible :: (Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a)
+  => VoxelGrid a
+  -> V3 Int -- ^ Position of voxel
+  -> Side -- ^ Which side to test
+  -> Bool
+isVoxelSideVisible g i vs = posInBounds s i && not (isEmptyVoxel a) && (not (posInBounds s j) || isEmptyVoxel b || not (isFullyOpaque b))
+  where
+    s = voxelGridSize g
+    a = g ! i
+    j = i + sideOffset vs
+    b = g ! j

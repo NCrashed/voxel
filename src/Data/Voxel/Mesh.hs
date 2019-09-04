@@ -5,6 +5,9 @@ module Data.Voxel.Mesh(
   , triangleNumber
   , create
   , cube
+  -- * Reexports
+  , Storable
   ) where
 
 import Data.Voxel.Mesh.Internal
+import Foreign.Storable

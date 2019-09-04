@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Data.Voxel.GPipe.Mesh(
     MeshBuffers(..)
   , MeshArray(..)
@@ -100,6 +101,16 @@ instance MeshBufferExt () where
 instance MeshBufferExt Int32 where
   type BufferOf os Int32 = Buffer os (B Int32)
   type ArrayOf Int32 = B Int32
+  newMeshDataBuffer _ n _ = newBuffer n
+  {-# INLINE newMeshDataBuffer #-}
+  writeMeshDataBuffer b p = writeBuffer b p . V.toList
+  {-# INLINE writeMeshDataBuffer #-}
+  newMeshDataVertexArray _ = newVertexArray
+  {-# INLINE newMeshDataVertexArray #-}
+
+instance MeshBufferExt (V3 Float) where
+  type BufferOf os (V3 Float) = Buffer os (B3 Float)
+  type ArrayOf (V3 Float) = B3 Float
   newMeshDataBuffer _ n _ = newBuffer n
   {-# INLINE newMeshDataBuffer #-}
   writeMeshDataBuffer b p = writeBuffer b p . V.toList

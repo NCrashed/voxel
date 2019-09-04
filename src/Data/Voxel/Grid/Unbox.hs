@@ -88,6 +88,8 @@ module Data.Voxel.Grid.Unbox(
   , unsafeCopy
   -- * Triangulation
   , triangulate
+  -- * Voxel specific
+  , isVoxelSideVisible
   ) where
 
 import Prelude()
