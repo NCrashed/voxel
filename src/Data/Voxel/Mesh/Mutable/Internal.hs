@@ -51,13 +51,23 @@ writeVertex MMesh{..} i p n u a = do
   MV.write mmeshUvs i u
   MV.write mmeshData i a
 
--- | Write triangle to the
-writeIndex :: (PrimMonad m, Storable a)
+-- | Write triangle to the mesh
+writeTriangleIndex :: (PrimMonad m, Storable a)
   => MMesh (PrimState m) a
   -> Int -- ^ Index
   -> V3 Word32
   -> m ()
-writeIndex MMesh{..} i (V3 a b c) = do
+writeTriangleIndex MMesh{..} i (V3 a b c) = do
   MV.write mmeshIndecies (i*3) a
   MV.write mmeshIndecies (i*3+1) b
   MV.write mmeshIndecies (i*3+2) c
+
+-- | Write line to the mesh
+writeLineIndex :: (PrimMonad m, Storable a)
+  => MMesh (PrimState m) a
+  -> Int -- ^ Index
+  -> V2 Word32
+  -> m ()
+writeLineIndex MMesh{..} i (V2 a b) = do
+  MV.write mmeshIndecies (i*2) a
+  MV.write mmeshIndecies (i*2+1) b

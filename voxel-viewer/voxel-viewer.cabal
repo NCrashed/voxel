@@ -50,7 +50,7 @@ library
 executable voxel-viewer
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-A64m -with-rtsopts=-AL128m -with-rtsopts=-qb0
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-A64m -with-rtsopts=-AL256m -with-rtsopts=-qn4
   build-depends:
       base
     , voxel-viewer

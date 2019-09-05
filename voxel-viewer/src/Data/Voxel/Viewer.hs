@@ -39,9 +39,9 @@ runViewer = do
           GM.write g (V3 0 0 1) $ V3 1.0 0.0 1.0
           GM.write g (V3 1 0 1) $ V3 1.0 0.0 1.0
           pure g
-    buffers <- meshBuffers $ triangulate model
+    buffers <- meshBuffers $ triangulate TriangulateTriangles model
     -- Make a Render action that returns a PrimitiveArray for the cube
-    let makePrimitives = meshBufferArray (Proxy :: Proxy (V3 Float)) buffers
+    let makePrimitives = meshBufferArray (Proxy :: Proxy (V3 Float)) TriangleList buffers
 
     -- Create a buffer for the uniform values
     uniform :: Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float))) <- newBuffer 1

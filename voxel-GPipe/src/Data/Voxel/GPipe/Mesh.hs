@@ -154,11 +154,11 @@ meshBuffers m = do
   pure bs
 
 -- | Convert mesh buffers to mesh vertex arrays
-meshBufferArray :: forall os a . MeshBufferExt a => Proxy a -> MeshBuffers os (BufferOf os a) -> Render os (PrimitiveArray Triangles (MeshArray (ArrayOf a)))
-meshBufferArray prox MeshBuffers{..} = do
+meshBufferArray :: forall os a p . MeshBufferExt a => Proxy a -> PrimitiveTopology p -> MeshBuffers os (BufferOf os a) -> Render os (PrimitiveArray p (MeshArray (ArrayOf a)))
+meshBufferArray prox top MeshBuffers{..} = do
   p :: VertexArray () (B3 Float) <- newVertexArray meshBuffPositions
   n :: VertexArray () (B3 Float) <- newVertexArray meshBuffNormals
   u :: VertexArray () (B2 Float) <- newVertexArray meshBuffUvs
   a :: VertexArray () (ArrayOf a) <- newMeshDataVertexArray prox meshBuffData
   i :: IndexArray <- newIndexArray meshBuffIndecies Nothing
-  pure $ toPrimitiveArrayIndexed TriangleList i $ zipVertices ($) (zipVertices ($) (zipVertices MeshArray p n) u) a
+  pure $ toPrimitiveArrayIndexed top i $ zipVertices ($) (zipVertices ($) (zipVertices MeshArray p n) u) a

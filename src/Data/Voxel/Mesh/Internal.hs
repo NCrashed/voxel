@@ -67,8 +67,6 @@ cube = Mesh {
           , (V3 1 1 1, V3 0 0 (-2), V3 0 (-2) 0)
           , (V3 1 1 1, V3 (-2) 0 0, V3 0 0 (-2))
           ]
-    ntrigs = length faces * 2
-    nverts = length faces * 4
     mkPoses p0 u l = [ p0, p0 + l, p0 + u, p0 + u + l ]
     mkNormals u l = let n = normalize $ cross l u in replicate 4 n
     mkUvs = [ V2 0 1, V2 1 1, V2 0 0, V2 1 0 ]

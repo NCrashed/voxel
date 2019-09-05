@@ -1,6 +1,7 @@
 -- | Conversion uboxed voxel grid to polygons (triangles)
 module Data.Voxel.Grid.Unbox.Polygon(
-    triangulate
+    TriangulateTopology(..)
+  , triangulate
   ) where
 
 import Control.Monad.ST (runST, ST)
@@ -12,6 +13,7 @@ import Data.Voxel.Grid.Unbox.Internal (VoxelGrid)
 import Data.Voxel.Mesh (Mesh, Storable)
 import Data.Voxel.Opaque
 import Data.Voxel.Side
+import GHC.Generics (Generic)
 import Linear (V2(..), V3(..))
 
 import qualified Data.Vector.Storable.Mutable as VM
@@ -19,18 +21,22 @@ import qualified Data.Voxel.Grid.Unbox.Internal as G
 import qualified Data.Voxel.Mesh as M
 import qualified Data.Voxel.Mesh.Mutable as MM
 
+-- | Possible triangulation topolgies
+data TriangulateTopology = TriangulateLines | TriangulateTriangles
+  deriving (Eq, Ord, Enum, Bounded, Read, Show, Generic)
+
 -- | Convert each voxel to cubes build from triangles and return them. Usually
 -- 'a' parameter used for color passing.
-triangulate :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => VoxelGrid a -> Mesh a
-triangulate g = negX <> posX <> negY <> posY <> negZ <> posZ
+triangulate :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => TriangulateTopology -> VoxelGrid a -> Mesh a
+triangulate t g = negX <> posX <> negY <> posY <> negZ <> posZ
   where
     n = G.size g
-    negX = foldMap (triangulateX g SideBackward) [0 .. n-1]
-    posX = foldMap (triangulateX g SideForward) [0 .. n-1]
-    negY = foldMap (triangulateY g SideLeft) [0 .. n-1]
-    posY = foldMap (triangulateY g SideRight) [0 .. n-1]
-    negZ = foldMap (triangulateZ g SideDown) [0 .. n-1]
-    posZ = foldMap (triangulateZ g SideUp) [0 .. n-1]
+    negX = foldMap (triangulateX t g SideBackward) [0 .. n-1]
+    posX = foldMap (triangulateX t g SideForward) [0 .. n-1]
+    negY = foldMap (triangulateY t g SideLeft) [0 .. n-1]
+    posY = foldMap (triangulateY t g SideRight) [0 .. n-1]
+    negZ = foldMap (triangulateZ t g SideDown) [0 .. n-1]
+    posZ = foldMap (triangulateZ t g SideUp) [0 .. n-1]
 
 -- | Mutable 2D vector that stores mask for visited voxels
 type Mask s a = VM.STVector s a
@@ -73,8 +79,8 @@ makeMaskZ g z = do
     n = G.size g
     go m i@(V2 x y) = setMask m n i $ g G.! (V3 x y z)
 
-triangulateX :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => VoxelGrid a -> Side -> Int -> Mesh a
-triangulateX g side x = runST $ do
+triangulateX :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => TriangulateTopology -> VoxelGrid a -> Side -> Int -> Mesh a
+triangulateX t g side x = runST $ do
   mask <- makeMaskX g x
   ms <- traverse (findQuad mask) [ V2 y z | y <- [0 .. n-1], z <- [0 .. n-1] ]
   pure $ mconcat . catMaybes $ ms
@@ -89,11 +95,12 @@ triangulateX g side x = runST $ do
           let y' = y + i
               z' = z + h
           am <- getMask mask n (V2 y' z')
+          let zeroMask = setMask mask n (V2 y' z') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x y' z') side
           if isEmptyVoxel am || am /= a || not visible then if i == 0
               then pure acc
               else step 0 (V2 i (h+1))
-            else step (i+1) acc
+            else zeroMask >> step (i+1) acc
       in step 1 (V2 0 0)
     findQuad mask i@(V2 y z) = do
       let j = V3 x y z
@@ -102,18 +109,29 @@ triangulateX g side x = runST $ do
       if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
       else do
         s <- peekQuad mask i a
-        pure $ Just $ (if side == SideBackward then quadMeshNegX else quadMeshPosX) n (V3 x y z) s a
+        pure $ Just $ (if side == SideBackward then quadMeshNegX else quadMeshPosX) t n (V3 x y z) s a
 
 -- | Create mesh from single quad for -X plane
-quadMeshNegX :: Storable a => Int -> V3 Int -> V2 Int -> a -> Mesh a
-quadMeshNegX n (V3 x y z) (V2 w h) a = M.create $ do
-  mm <- MM.new 4 2
+quadMeshNegX :: Storable a => TriangulateTopology -> Int -> V3 Int -> V2 Int -> a -> Mesh a
+quadMeshNegX t n (V3 x y z) (V2 w h) a = M.create $ do
+  mm <- case t of
+    TriangulateTriangles -> MM.new 4 2
+    TriangulateLines -> MM.new 4 6
   MM.writeVertex mm 0 p0 normal u0 a
   MM.writeVertex mm 1 p1 normal u1 a
   MM.writeVertex mm 2 p2 normal u2 a
   MM.writeVertex mm 3 p3 normal u3 a
-  MM.writeIndex mm 0 $ V3 0 1 3
-  MM.writeIndex mm 1 $ V3 1 2 3
+  case t of
+    TriangulateTriangles -> do
+      MM.writeTriangleIndex mm 0 $ V3 0 1 3
+      MM.writeTriangleIndex mm 1 $ V3 1 2 3
+    TriangulateLines -> do
+      MM.writeLineIndex mm 0 $ V2 0 1
+      MM.writeLineIndex mm 1 $ V2 1 3
+      MM.writeLineIndex mm 2 $ V2 3 0
+      MM.writeLineIndex mm 3 $ V2 1 2
+      MM.writeLineIndex mm 4 $ V2 2 3
+      MM.writeLineIndex mm 5 $ V2 3 1
   pure mm
   where
     normal = V3 (-1) 0 0
@@ -128,15 +146,26 @@ quadMeshNegX n (V3 x y z) (V2 w h) a = M.create $ do
     norm v = fromIntegral v / fromIntegral n
 
 -- | Create mesh from single quad for +X plane
-quadMeshPosX :: Storable a => Int -> V3 Int -> V2 Int -> a -> Mesh a
-quadMeshPosX n (V3 x y z) (V2 w h) a = M.create $ do
-  mm <- MM.new 4 2
+quadMeshPosX :: Storable a => TriangulateTopology -> Int -> V3 Int -> V2 Int -> a -> Mesh a
+quadMeshPosX t n (V3 x y z) (V2 w h) a = M.create $ do
+  mm <- case t of
+    TriangulateTriangles -> MM.new 4 2
+    TriangulateLines -> MM.new 4 6
   MM.writeVertex mm 0 p0 normal u0 a
   MM.writeVertex mm 1 p1 normal u1 a
   MM.writeVertex mm 2 p2 normal u2 a
   MM.writeVertex mm 3 p3 normal u3 a
-  MM.writeIndex mm 0 $ V3 3 1 0
-  MM.writeIndex mm 1 $ V3 3 2 1
+  case t of
+    TriangulateTriangles -> do
+      MM.writeTriangleIndex mm 0 $ V3 3 1 0
+      MM.writeTriangleIndex mm 1 $ V3 3 2 1
+    TriangulateLines -> do
+      MM.writeLineIndex mm 0 $ V2 0 1
+      MM.writeLineIndex mm 1 $ V2 1 3
+      MM.writeLineIndex mm 2 $ V2 3 0
+      MM.writeLineIndex mm 3 $ V2 1 2
+      MM.writeLineIndex mm 4 $ V2 2 3
+      MM.writeLineIndex mm 5 $ V2 3 1
   pure mm
   where
     normal = V3 1 0 0
@@ -150,8 +179,8 @@ quadMeshPosX n (V3 x y z) (V2 w h) a = M.create $ do
     u3 = V2 0 0
     norm v = fromIntegral v / fromIntegral n
 
-triangulateY :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => VoxelGrid a -> Side -> Int -> Mesh a
-triangulateY g side y = runST $ do
+triangulateY :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => TriangulateTopology -> VoxelGrid a -> Side -> Int -> Mesh a
+triangulateY t g side y = runST $ do
   mask <- makeMaskY g y
   ms <- traverse (findQuad mask) [ V2 x z | x <- [0 .. n-1], z <- [0 .. n-1] ]
   pure $ mconcat . catMaybes $ ms
@@ -166,11 +195,12 @@ triangulateY g side y = runST $ do
           let x' = x + i
               z' = z + h
           am <- getMask mask n (V2 x' z')
+          let zeroMask = setMask mask n (V2 x' z') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x' y z') side
           if isEmptyVoxel am || am /= a || not visible then if i == 0
               then pure acc
               else step 0 (V2 i (h+1))
-            else step (i+1) acc
+            else zeroMask >> step (i+1) acc
       in step 1 (V2 0 0)
     findQuad mask i@(V2 x z) = do
       let j = V3 x y z
@@ -179,18 +209,29 @@ triangulateY g side y = runST $ do
       if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
       else do
         s <- peekQuad mask i a
-        pure $ Just $ (if side == SideLeft then quadMeshNegY else quadMeshPosY) n (V3 x y z) s a
+        pure $ Just $ (if side == SideLeft then quadMeshNegY else quadMeshPosY) t n (V3 x y z) s a
 
 -- | Create mesh from single quad for -Y plane
-quadMeshNegY :: Storable a => Int -> V3 Int -> V2 Int -> a -> Mesh a
-quadMeshNegY n (V3 x y z) (V2 w h) a = M.create $ do
-  mm <- MM.new 4 2
+quadMeshNegY :: Storable a =>  TriangulateTopology -> Int -> V3 Int -> V2 Int -> a -> Mesh a
+quadMeshNegY t n (V3 x y z) (V2 w h) a = M.create $ do
+  mm <- case t of
+    TriangulateTriangles -> MM.new 4 2
+    TriangulateLines -> MM.new 4 6
   MM.writeVertex mm 0 p0 normal u0 a
   MM.writeVertex mm 1 p1 normal u1 a
   MM.writeVertex mm 2 p2 normal u2 a
   MM.writeVertex mm 3 p3 normal u3 a
-  MM.writeIndex mm 0 $ V3 0 1 3
-  MM.writeIndex mm 1 $ V3 1 2 3
+  case t of
+    TriangulateTriangles -> do
+      MM.writeTriangleIndex mm 0 $ V3 0 1 3
+      MM.writeTriangleIndex mm 1 $ V3 1 2 3
+    TriangulateLines -> do
+      MM.writeLineIndex mm 0 $ V2 0 1
+      MM.writeLineIndex mm 1 $ V2 1 3
+      MM.writeLineIndex mm 2 $ V2 3 0
+      MM.writeLineIndex mm 3 $ V2 1 2
+      MM.writeLineIndex mm 4 $ V2 2 3
+      MM.writeLineIndex mm 5 $ V2 3 1
   pure mm
   where
     normal = V3 0 (-1) 0
@@ -205,15 +246,26 @@ quadMeshNegY n (V3 x y z) (V2 w h) a = M.create $ do
     norm v = fromIntegral v / fromIntegral n
 
 -- | Create mesh from single quad for +Y plane
-quadMeshPosY :: Storable a => Int -> V3 Int -> V2 Int -> a -> Mesh a
-quadMeshPosY n (V3 x y z) (V2 w h) a = M.create $ do
-  mm <- MM.new 4 2
+quadMeshPosY :: Storable a => TriangulateTopology -> Int -> V3 Int -> V2 Int -> a -> Mesh a
+quadMeshPosY t n (V3 x y z) (V2 w h) a = M.create $ do
+  mm <- case t of
+    TriangulateTriangles -> MM.new 4 2
+    TriangulateLines -> MM.new 4 6
   MM.writeVertex mm 0 p0 normal u0 a
   MM.writeVertex mm 1 p1 normal u1 a
   MM.writeVertex mm 2 p2 normal u2 a
   MM.writeVertex mm 3 p3 normal u3 a
-  MM.writeIndex mm 0 $ V3 3 1 0
-  MM.writeIndex mm 1 $ V3 3 2 1
+  case t of
+    TriangulateTriangles -> do
+      MM.writeTriangleIndex mm 0 $ V3 3 1 0
+      MM.writeTriangleIndex mm 1 $ V3 3 2 1
+    TriangulateLines -> do
+      MM.writeLineIndex mm 0 $ V2 0 1
+      MM.writeLineIndex mm 1 $ V2 1 3
+      MM.writeLineIndex mm 2 $ V2 3 0
+      MM.writeLineIndex mm 3 $ V2 1 2
+      MM.writeLineIndex mm 4 $ V2 2 3
+      MM.writeLineIndex mm 5 $ V2 3 1
   pure mm
   where
     normal = V3 0 1 0
@@ -227,8 +279,8 @@ quadMeshPosY n (V3 x y z) (V2 w h) a = M.create $ do
     u3 = V2 0 0
     norm v = fromIntegral v / fromIntegral n
 
-triangulateZ :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => VoxelGrid a -> Side -> Int -> Mesh a
-triangulateZ g side z = runST $ do
+triangulateZ :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => TriangulateTopology -> VoxelGrid a -> Side -> Int -> Mesh a
+triangulateZ t g side z = runST $ do
   mask <- makeMaskZ g z
   ms <- traverse (findQuad mask) [ V2 x y | x <- [0 .. n-1], y <- [0 .. n-1] ]
   pure $ mconcat . catMaybes $ ms
@@ -243,11 +295,12 @@ triangulateZ g side z = runST $ do
           let x' = x + i
               y' = y + h
           am <- getMask mask n (V2 x' y')
+          let zeroMask = setMask mask n (V2 x' y') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x' y' z) side
           if isEmptyVoxel am || am /= a || not visible then if i == 0
               then pure acc
               else step 0 (V2 i (h+1))
-            else step (i+1) acc
+            else zeroMask >> step (i+1) acc
       in step 1 (V2 0 0)
     findQuad mask i@(V2 x y) = do
       let j = V3 x y z
@@ -256,19 +309,30 @@ triangulateZ g side z = runST $ do
       if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
       else do
         s <- peekQuad mask i a
-        pure $ Just $ (if side == SideDown then quadMeshNegZ else quadMeshPosZ) n (V3 x y z) s a
+        pure $ Just $ (if side == SideDown then quadMeshNegZ else quadMeshPosZ) t n (V3 x y z) s a
 
 
 -- | Create mesh from single quad for -Z plane
-quadMeshNegZ :: Storable a => Int -> V3 Int -> V2 Int -> a -> Mesh a
-quadMeshNegZ n (V3 x y z) (V2 w h) a = M.create $ do
-  mm <- MM.new 4 2
+quadMeshNegZ :: Storable a => TriangulateTopology -> Int -> V3 Int -> V2 Int -> a -> Mesh a
+quadMeshNegZ t n (V3 x y z) (V2 w h) a = M.create $ do
+  mm <- case t of
+    TriangulateTriangles -> MM.new 4 2
+    TriangulateLines -> MM.new 4 6
   MM.writeVertex mm 0 p0 normal u0 a
   MM.writeVertex mm 1 p1 normal u1 a
   MM.writeVertex mm 2 p2 normal u2 a
   MM.writeVertex mm 3 p3 normal u3 a
-  MM.writeIndex mm 0 $ V3 0 1 3
-  MM.writeIndex mm 1 $ V3 1 2 3
+  case t of
+    TriangulateTriangles -> do
+      MM.writeTriangleIndex mm 0 $ V3 0 1 3
+      MM.writeTriangleIndex mm 1 $ V3 1 2 3
+    TriangulateLines -> do
+      MM.writeLineIndex mm 0 $ V2 0 1
+      MM.writeLineIndex mm 1 $ V2 1 3
+      MM.writeLineIndex mm 2 $ V2 3 0
+      MM.writeLineIndex mm 3 $ V2 1 2
+      MM.writeLineIndex mm 4 $ V2 2 3
+      MM.writeLineIndex mm 5 $ V2 3 1
   pure mm
   where
     normal = V3 0 0 (-1)
@@ -283,15 +347,26 @@ quadMeshNegZ n (V3 x y z) (V2 w h) a = M.create $ do
     norm v = fromIntegral v / fromIntegral n
 
 -- | Create mesh from single quad for +Z plane
-quadMeshPosZ :: Storable a => Int -> V3 Int -> V2 Int -> a -> Mesh a
-quadMeshPosZ n (V3 x y z) (V2 w h) a = M.create $ do
-  mm <- MM.new 4 2
+quadMeshPosZ :: Storable a => TriangulateTopology -> Int -> V3 Int -> V2 Int -> a -> Mesh a
+quadMeshPosZ t n (V3 x y z) (V2 w h) a = M.create $ do
+  mm <- case t of
+    TriangulateTriangles -> MM.new 4 2
+    TriangulateLines -> MM.new 4 6
   MM.writeVertex mm 0 p0 normal u0 a
   MM.writeVertex mm 1 p1 normal u1 a
   MM.writeVertex mm 2 p2 normal u2 a
   MM.writeVertex mm 3 p3 normal u3 a
-  MM.writeIndex mm 0 $ V3 3 1 0
-  MM.writeIndex mm 1 $ V3 3 2 1
+  case t of
+    TriangulateTriangles -> do
+      MM.writeTriangleIndex mm 0 $ V3 3 1 0
+      MM.writeTriangleIndex mm 1 $ V3 3 2 1
+    TriangulateLines -> do
+      MM.writeLineIndex mm 0 $ V2 0 1
+      MM.writeLineIndex mm 1 $ V2 1 3
+      MM.writeLineIndex mm 2 $ V2 3 0
+      MM.writeLineIndex mm 3 $ V2 1 2
+      MM.writeLineIndex mm 4 $ V2 2 3
+      MM.writeLineIndex mm 5 $ V2 3 1
   pure mm
   where
     normal = V3 0 0 1
