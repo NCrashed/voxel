@@ -1,0 +1,22 @@
+resolver: lts-14.4
+
+packages:
+- '.'
+- GPipe-GLFW
+- MagicaVoxel-vox
+- voxel-GPipe
+- voxel-viewer
+
+extra-deps:
+- GPipe-2.2.4
+- gl-0.8.0@sha256:34f70f80662d61e3176489e7799e12fadd5a695682f6322ef1e8e87686200d61
+
+nix:
+  packages:
+    - libGL
+    - xorg.libX11
+    - xorg.libXi
+    - xorg.libXrandr
+    - xorg.libXxf86vm
+    - xorg.libXcursor
+    - xorg.libXinerama
