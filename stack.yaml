@@ -10,6 +10,7 @@ packages:
 extra-deps:
 - GPipe-2.2.4
 - gl-0.8.0@sha256:34f70f80662d61e3176489e7799e12fadd5a695682f6322ef1e8e87686200d61
+- vector-th-unbox-0.2.1.7
 
 nix:
   packages:
