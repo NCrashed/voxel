@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Data.MagicaVoxel.Types(
@@ -8,6 +9,7 @@ module Data.MagicaVoxel.Types(
   , defaultPalette
   , VoxMaterial(..)
   , VoxMaterialProperty(..)
+  , setMaterialProperty
   , VoxMaterialType(..)
   ) where
 
@@ -31,6 +33,30 @@ data VoxMaterialProperty =
   | TotalPowerProp
   deriving (Show, Read, Generic)
 
+derivingUnbox "VoxMaterialProperty"
+    [t| VoxMaterialProperty -> (Word8, Float) |]
+    [| \case
+          PlasticProp v -> (0, v)
+          RoughnessProp v -> (1, v)
+          SpecularProp v -> (2, v)
+          IORProp v -> (3, v)
+          AttenuationProp v -> (4, v)
+          PowerProp v -> (5, v)
+          GlowProp v -> (6, v)
+          TotalPowerProp -> (7, 0)
+    |]
+    [| \(i, v) -> case i of
+          0 -> PlasticProp v
+          1 -> RoughnessProp v
+          2 -> SpecularProp v
+          3 -> IORProp v
+          4 -> AttenuationProp v
+          5 -> PowerProp v
+          6 -> GlowProp v
+          7 -> TotalPowerProp
+          _ -> PlasticProp v
+    |]
+
 -- | Compared by constructor tag, no compare for floats inside
 instance Eq VoxMaterialProperty where
   a == b = case (a, b) of
@@ -45,13 +71,25 @@ instance Eq VoxMaterialProperty where
     _ -> False
   {-# INLINE (==) #-}
 
+-- | Update value of property inside
+setMaterialProperty :: VoxMaterialProperty -> Float -> VoxMaterialProperty
+setMaterialProperty p v = case p of
+  PlasticProp _ -> PlasticProp v
+  RoughnessProp _ -> RoughnessProp v
+  SpecularProp _ -> SpecularProp v
+  IORProp _ -> IORProp v
+  AttenuationProp _ -> AttenuationProp v
+  PowerProp _ -> PowerProp v
+  GlowProp _ -> GlowProp v
+  TotalPowerProp -> TotalPowerProp
+
 -- | Material type
 data VoxMaterialType = VMDiffuse | VMMetal | VMGlass | VMEmissive
   deriving (Eq, Ord, Enum, Bounded, Show, Read, Generic)
 
 -- | Rendering material for voxels
 data VoxMaterial = VoxMaterial {
-  voxMaterialId     :: !Word8
+  voxMaterialId     :: !Word32
 , voxMaterialType   :: !VoxMaterialType
 , voxMaterialWeight :: !Float
 , voxMaterialProps  :: !(Set VoxMaterialProperty)
