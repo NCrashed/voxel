@@ -427,7 +427,7 @@ unsafeCopy (GM.MVoxelGrid _ mv) (VoxelGrid _ v) = V.unsafeCopy mv v
 
 -- | /O(n)/ Copy an immutable grid into a mutable one. The two grids must
 -- have the same length.
-copy :: (Unbox a, PrimMonad m) => MVoxelGrid (PrimState m) a -> VoxelGrid a -> m ()
+copy :: (Unbox a, PrimMonad m, MonadFail m) => MVoxelGrid (PrimState m) a -> VoxelGrid a -> m ()
 copy (GM.MVoxelGrid s1 mv) (VoxelGrid s2 v)
   | s1 == s2 = V.copy mv v
   | otherwise = fail $ "copy: grid sizes don't match " <> show s1 <> " /= " <> show s2

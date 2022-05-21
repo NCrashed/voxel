@@ -27,11 +27,11 @@ library
   exposed-modules:
     Data.Voxel.Viewer
   build-depends:
-      base            >= 4.5      && < 4.14
+      base            >= 4.5      && < 5
     , GPipe           >= 2.2.4    && < 2.3
     , GPipe-GLFW      >= 1.4.1.1  && < 1.5
-    , lens            >= 4.10     && < 4.18
-    , linear          >= 1.20     && < 1.21
+    , lens            >= 4.10     && < 6
+    , linear          >= 1.20     && < 2
     , vector          >= 0.10     && < 0.13
     , voxel           >= 0.0      && < 0.1
     , voxel-GPipe     >= 0.0      && < 0.1

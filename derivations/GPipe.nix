@@ -1,16 +1,17 @@
 { mkDerivation, base, Boolean, containers, exception-transformers
-, gl, hashtables, linear, stdenv, transformers
+, gl, hashtables, lib, linear, transformers
 }:
 mkDerivation {
   pname = "GPipe";
-  version = "2.2.4";
-  sha256 = "409a1f89e7c5f4c6833d8f06ebb1da949fa65bc5bf7a0b58938c7317881c7a50";
+  version = "2.2.5";
+  sha256 = "7f3cfe7fdfcedb51695acf5f06557ca358ec590e288e29b14bb4dd5ddaeb90cc";
   enableSeparateDataOutput = true;
   libraryHaskellDepends = [
     base Boolean containers exception-transformers gl hashtables linear
     transformers
   ];
+  jailbreak = true;
   homepage = "https://github.com/tobbebex/GPipe-Core#readme";
   description = "Typesafe functional GPU graphics programming";
-  license = stdenv.lib.licenses.mit;
+  license = lib.licenses.mit;
 }

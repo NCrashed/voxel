@@ -96,7 +96,7 @@ posInBounds n (V3 x y z) =
 {-# INLINE posInBounds #-}
 
 -- | Read single element in grid with bounding checks.
-read :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> m a
+read :: (PrimMonad m, MonadFail m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> m a
 read (MVoxelGrid n g) p
   | not (posInBounds n p) = fail $ "MVoxelGrid: read " ++ show p
     ++ " is out of bounds of " ++ show (V3 n n n)
@@ -106,7 +106,7 @@ read (MVoxelGrid n g) p
 {-# INLINE read #-}
 
 -- | Write single element in grid with bounding checks.
-write :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> a -> m ()
+write :: (PrimMonad m, MonadFail m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> a -> m ()
 write (MVoxelGrid n g) p a
   | not (posInBounds n p) = fail $ "MVoxelGrid: write " ++ show p
     ++ " is out of bounds of " ++ show (V3 n n n)
@@ -116,7 +116,7 @@ write (MVoxelGrid n g) p a
 {-# INLINE write #-}
 
 -- | Swap two elements in the grid
-swap :: (PrimMonad m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> V3 Int -> m ()
+swap :: (PrimMonad m, MonadFail m, Unbox a) => MVoxelGrid (PrimState m) a -> V3 Int -> V3 Int -> m ()
 swap (MVoxelGrid n g) p1 p2
   | not (posInBounds n p1) = fail $ "MVoxelGrid: swap " ++ show p1
     ++ " is out of bounds of " ++ show (V3 n n n)
