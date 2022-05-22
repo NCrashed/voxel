@@ -35,17 +35,17 @@ runViewer = do
     rawModel <- either (fail . ("Vox convert: " ++)) pure $ convertMagica voxModel
     -- Create vertex data buffers
     let model :: G.VoxelGrid (V3 Float)
-        model = G.create $ do
-          let sn = 12
-          let sn2 = sn `div` 2
-          let r = sn2
-          let size@(V3 sx sy sz) = V3 sn sn sn
-          g <- GM.new size
-          let c = V3 1.0 0.4 0.5
-          let is = [V3 x y z | x <- [0 .. sx-1], y <- [0 .. sy-1], z <- [0 .. sz-1], (x-sn2)*(x-sn2) + (y-sn2)*(y-sn2) + (z-sn2)*(z-sn2) <= r*r]
-          mapM_ (\i@(V3 x y z) -> GM.write g i $ V3 0.5 0.4 0.5) is   
-          pure g
-        -- model = G.map word32Color rawModel
+        -- model = G.create $ do
+        --   let sn = 12
+        --   let sn2 = sn `div` 2
+        --   let r = sn2
+        --   let size@(V3 sx sy sz) = V3 sn sn sn
+        --   g <- GM.new size
+        --   let c = V3 1.0 0.4 0.5
+        --   let is = [V3 x y z | x <- [0 .. sx-1], y <- [0 .. sy-1], z <- [0 .. sz-1], (x-sn2)*(x-sn2) + (y-sn2)*(y-sn2) + (z-sn2)*(z-sn2) <= r*r]
+        --   mapM_ (\i@(V3 x y z) -> GM.write g i $ V3 0.5 0.4 0.5) is   
+        --   pure g
+        model = G.map word32Color rawModel
     buffers <- meshBuffers $ triangulate TriangulateTriangles model
     -- Make a Render action that returns a PrimitiveArray for the cube
     let makePrimitives = meshBufferArray (Proxy :: Proxy (V3 Float)) TriangleList buffers
@@ -83,7 +83,7 @@ loop win shader makePrimitives uniform ang = do
   size@(V2 w h) <- getFrameBufferSize win
   let modelRot = fromQuaternion (axisAngle (V3 1 0.5 0.3) ang)
       modelMat = mkTransformationMat modelRot (pure 0)
-      projMat = perspective (pi/3) (fromIntegral w / fromIntegral h) 1 100
+      projMat = perspective (pi/9) (fromIntegral w / fromIntegral h) 1 100
       viewMat = mkTransformationMat identity (- V3 0 0 5)
       viewProjMat = projMat !*! viewMat !*! modelMat
       normMat = modelRot

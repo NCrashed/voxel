@@ -7,6 +7,7 @@ import Control.Applicative
 import Control.Monad.IO.Class
 import Data.Array.ST (newArray, readArray, MArray, STUArray)
 import Data.Array.Unsafe (castSTUArray)
+import Data.Attoparsec.Binary
 import Data.Attoparsec.ByteString
 import Data.Bits
 import Data.ByteString (ByteString)
@@ -49,6 +50,7 @@ parseModel = do
   chunk_ "XYZI"
   n <- anyWord32
   vs <- VU.replicateM (fromIntegral n) peekVoxel
+  
   pure $ VoxModel x y z vs
 
 parseSize :: Parser (Word32, Word32, Word32)
@@ -113,15 +115,9 @@ chunk name = do
   k <- anyWord32
   pure (n, k)
 
--- | Big endian 4 bytes word parser
+-- -- | Big endian 4 bytes word parser
 anyWord32 :: Parser Word32
-anyWord32 = do
-  a <- anyWord8
-  b <- anyWord8
-  c <- anyWord8
-  d <- anyWord8
-  let sl i = shiftL i . fromIntegral
-  pure $ fromIntegral a + sl 8 b + sl 16 c + sl 32 d
+anyWord32 = anyWord32le
 
 -- | Parse big endian 4 bytes float
 anyFloat :: Parser Float
