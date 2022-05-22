@@ -14,7 +14,7 @@ import Data.Voxel.Mesh (Mesh, Storable)
 import Data.Voxel.Opaque
 import Data.Voxel.Side
 import GHC.Generics (Generic)
-import Linear (V2(..), V3(..))
+import Linear (V2(..), V3(..)) 
 
 import qualified Data.Vector.Storable.Mutable as VM
 import qualified Data.Voxel.Grid.Unbox.Internal as G
@@ -56,7 +56,7 @@ makeMaskX g x = do
   traverse_ (go m) [ V2 y z | y <- [0 .. ny-1], z <- [0 .. nz-1] ]
   pure m
   where
-    V3 nx ny nz = G.size g
+    V3 _ ny nz = G.size g
     go m i@(V2 y z) = setMask m ny i $ g G.! (V3 x y z)
 
 -- | Fill mask for Y plane
@@ -66,7 +66,7 @@ makeMaskY g y = do
   traverse_ (go m) [ V2 x z | x <- [0 .. nx-1], z <- [0 .. nz-1] ]
   pure m
   where
-    V3 nx ny nz = G.size g
+    V3 nx _ nz = G.size g
     go m i@(V2 x z) = setMask m nx i $ g G.! (V3 x y z)
 
 -- | Fill mask for Z plane
@@ -76,7 +76,7 @@ makeMaskZ g z = do
   traverse_ (go m) [ V2 x y | x <- [0 .. nx-1], y <- [0 .. ny-1] ]
   pure m
   where
-    V3 nx ny nz = G.size g
+    V3 nx ny _ = G.size g
     go m i@(V2 x y) = setMask m nx i $ g G.! (V3 x y z)
 
 triangulateX :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => TriangulateTopology -> VoxelGrid a -> Side -> Int -> Mesh a
@@ -85,7 +85,7 @@ triangulateX t g side x = runST $ do
   ms <- traverse (findQuad mask) [ V2 y z | y <- [0 .. ny-1], z <- [0 .. nz-1] ]
   pure $ mconcat . catMaybes $ ms
   where
-    nv@(V3 nx ny nz) = G.size g
+    nv@(V3 _ ny nz) = G.size g
     peekQuad mask (V2 y z) a = let
       step !i !acc@(V2 w h)
         | z + h >= nz = pure acc
@@ -95,13 +95,15 @@ triangulateX t g side x = runST $ do
           let y' = y + i
               z' = z + h
           am <- getMask mask ny (V2 y' z')
-          let zeroMask = setMask mask ny (V2 y' z') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x y' z') side
           if isEmptyVoxel am || am /= a || not visible then if i == 0
               then pure acc
               else step 0 (V2 i (h+1))
-            else zeroMask >> step (i+1) acc
+            else step (i+1) acc
       in step 1 (V2 0 0)
+    zeroMask mask (V2 y z) (V2 w h) = do 
+      let is = [ V2 a b | a <- [y .. y+w-1], b <- [z .. z+h-1] ]
+      traverse_ (\(V2 a b) -> setMask mask ny (V2 a b) emptyVoxel) is 
     findQuad mask i@(V2 y z) = do
       let j = V3 x y z
       let a = g G.! j
@@ -109,6 +111,7 @@ triangulateX t g side x = runST $ do
       if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
       else do
         s <- peekQuad mask i a
+        zeroMask mask i s
         pure $ Just $ (if side == SideBackward then quadMeshNegX else quadMeshPosX) t nv (V3 x y z) s a
 
 -- | Helper that makes size of greatest dimension equals 1.0
@@ -190,7 +193,7 @@ triangulateY t g side y = runST $ do
   ms <- traverse (findQuad mask) [ V2 x z | x <- [0 .. nx-1], z <- [0 .. nz-1] ]
   pure $ mconcat . catMaybes $ ms
   where
-    nv@(V3 nx ny nz) = G.size g
+    nv@(V3 nx _ nz) = G.size g
     peekQuad mask (V2 x z) a = let
       step !i !acc@(V2 w h)
         | z + h >= nz = pure acc
@@ -200,20 +203,24 @@ triangulateY t g side y = runST $ do
           let x' = x + i
               z' = z + h
           am <- getMask mask nx (V2 x' z')
-          let zeroMask = setMask mask nx (V2 x' z') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x' y z') side
-          if isEmptyVoxel am || am /= a || not visible then if i == 0
-              then pure acc
+          if isEmptyVoxel am || am /= a || not visible then 
+              if i == 0 then pure acc
               else step 0 (V2 i (h+1))
-            else zeroMask >> step (i+1) acc
+            else step (i+1) acc
       in step 1 (V2 0 0)
+    zeroMask mask (V2 x z) (V2 w h) = do 
+      let is = [ V2 a b | a <- [x .. x+w-1], b <- [z .. z+h-1] ]
+      traverse_ (\(V2 a b) -> setMask mask nx (V2 a b) emptyVoxel) is 
     findQuad mask i@(V2 x z) = do
       let j = V3 x y z
       let a = g G.! j
       am <- getMask mask nx i
-      if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
+      if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) 
+        then do pure Nothing
       else do
         s <- peekQuad mask i a
+        zeroMask mask i s
         pure $ Just $ (if side == SideLeft then quadMeshNegY else quadMeshPosY) t nv (V3 x y z) s a
 
 -- | Create mesh from single quad for -Y plane
@@ -288,7 +295,7 @@ triangulateZ t g side z = runST $ do
   ms <- traverse (findQuad mask) [ V2 x y | x <- [0 .. nx-1], y <- [0 .. ny-1] ]
   pure $ mconcat . catMaybes $ ms
   where
-    nv@(V3 nx ny nz) = G.size g
+    nv@(V3 nx ny _) = G.size g
     peekQuad mask (V2 x y) a = let
       step !i !acc@(V2 w h)
         | y + h >= ny = pure acc
@@ -298,13 +305,15 @@ triangulateZ t g side z = runST $ do
           let x' = x + i
               y' = y + h
           am <- getMask mask nx (V2 x' y')
-          let zeroMask = setMask mask nx (V2 x' y') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x' y' z) side
           if isEmptyVoxel am || am /= a || not visible then if i == 0
               then pure acc
               else step 0 (V2 i (h+1))
-            else zeroMask >> step (i+1) acc
+            else step (i+1) acc
       in step 1 (V2 0 0)
+    zeroMask mask (V2 x y) (V2 w h) = do 
+      let is = [ V2 a b | a <- [x .. x+w-1], b <- [y .. y+h-1] ]
+      traverse_ (\(V2 a b) -> setMask mask nx (V2 a b) emptyVoxel) is 
     findQuad mask i@(V2 x y) = do
       let j = V3 x y z
       let a = g G.! j
@@ -312,6 +321,7 @@ triangulateZ t g side z = runST $ do
       if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
       else do
         s <- peekQuad mask i a
+        zeroMask mask i s 
         pure $ Just $ (if side == SideDown then quadMeshNegZ else quadMeshPosZ) t nv (V3 x y z) s a
 
 

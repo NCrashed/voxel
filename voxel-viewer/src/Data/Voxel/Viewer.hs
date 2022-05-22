@@ -24,7 +24,6 @@ import qualified Graphics.GPipe.Context.GLFW as GLFW
 
 runViewer :: IO ()
 runViewer = do
-  -- traceShowM M.cube
   runContextT GLFW.defaultHandleConfig $ do
 
     let wcfg = (GLFW.defaultWindowConfig "voxel viewer") {
@@ -40,11 +39,11 @@ runViewer = do
           let sn = 12
           let sn2 = sn `div` 2
           let r = sn2
-          let size@(V3 sx sy sz) = V3 sn 2 sn
+          let size@(V3 sx sy sz) = V3 sn sn sn
           g <- GM.new size
           let c = V3 1.0 0.4 0.5
           let is = [V3 x y z | x <- [0 .. sx-1], y <- [0 .. sy-1], z <- [0 .. sz-1], (x-sn2)*(x-sn2) + (y-sn2)*(y-sn2) + (z-sn2)*(z-sn2) <= r*r]
-          mapM_ (\i -> GM.write g i c) is   
+          mapM_ (\i@(V3 x y z) -> GM.write g i $ V3 0.5 0.4 0.5) is   
           pure g
         -- model = G.map word32Color rawModel
     buffers <- meshBuffers $ triangulate TriangulateTriangles model
