@@ -1,6 +1,6 @@
 packages:
-  ./
   GPipe-GLFW
   MagicaVoxel-vox
+  voxel
   voxel-GPipe
   voxel-viewer
