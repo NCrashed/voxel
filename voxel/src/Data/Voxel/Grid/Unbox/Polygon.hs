@@ -57,7 +57,7 @@ makeMaskX g x = do
   pure m
   where
     V3 nx ny nz = G.size g
-    go m i@(V2 y z) = setMask m nx i $ g G.! (V3 x y z)
+    go m i@(V2 y z) = setMask m ny i $ g G.! (V3 x y z)
 
 -- | Fill mask for Y plane
 makeMaskY :: (Storable a, Unbox a) => VoxelGrid a -> Int -> ST s (Mask s a)
@@ -67,7 +67,7 @@ makeMaskY g y = do
   pure m
   where
     V3 nx ny nz = G.size g
-    go m i@(V2 x z) = setMask m ny i $ g G.! (V3 x y z)
+    go m i@(V2 x z) = setMask m nx i $ g G.! (V3 x y z)
 
 -- | Fill mask for Z plane
 makeMaskZ :: (Storable a, Unbox a) => VoxelGrid a -> Int -> ST s (Mask s a)
@@ -77,7 +77,7 @@ makeMaskZ g z = do
   pure m
   where
     V3 nx ny nz = G.size g
-    go m i@(V2 x y) = setMask m nz i $ g G.! (V3 x y z)
+    go m i@(V2 x y) = setMask m nx i $ g G.! (V3 x y z)
 
 triangulateX :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, Eq a) => TriangulateTopology -> VoxelGrid a -> Side -> Int -> Mesh a
 triangulateX t g side x = runST $ do
@@ -94,8 +94,8 @@ triangulateX t g side x = runST $ do
         | otherwise = do
           let y' = y + i
               z' = z + h
-          am <- getMask mask nx (V2 y' z')
-          let zeroMask = setMask mask nx (V2 y' z') emptyVoxel
+          am <- getMask mask ny (V2 y' z')
+          let zeroMask = setMask mask ny (V2 y' z') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x y' z') side
           if isEmptyVoxel am || am /= a || not visible then if i == 0
               then pure acc
@@ -105,7 +105,7 @@ triangulateX t g side x = runST $ do
     findQuad mask i@(V2 y z) = do
       let j = V3 x y z
       let a = g G.! j
-      am <- getMask mask nx i
+      am <- getMask mask ny i
       if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
       else do
         s <- peekQuad mask i a
@@ -194,8 +194,8 @@ triangulateY t g side y = runST $ do
         | otherwise = do
           let x' = x + i
               z' = z + h
-          am <- getMask mask ny (V2 x' z')
-          let zeroMask = setMask mask ny (V2 x' z') emptyVoxel
+          am <- getMask mask nx (V2 x' z')
+          let zeroMask = setMask mask nx (V2 x' z') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x' y z') side
           if isEmptyVoxel am || am /= a || not visible then if i == 0
               then pure acc
@@ -205,7 +205,7 @@ triangulateY t g side y = runST $ do
     findQuad mask i@(V2 x z) = do
       let j = V3 x y z
       let a = g G.! j
-      am <- getMask mask ny i
+      am <- getMask mask nx i
       if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
       else do
         s <- peekQuad mask i a
@@ -294,8 +294,8 @@ triangulateZ t g side z = runST $ do
         | otherwise = do
           let x' = x + i
               y' = y + h
-          am <- getMask mask nz (V2 x' y')
-          let zeroMask = setMask mask nz (V2 x' y') emptyVoxel
+          am <- getMask mask nx (V2 x' y')
+          let zeroMask = setMask mask nx (V2 x' y') emptyVoxel
           let visible = G.isVoxelSideVisible g (V3 x' y' z) side
           if isEmptyVoxel am || am /= a || not visible then if i == 0
               then pure acc
@@ -305,7 +305,7 @@ triangulateZ t g side z = runST $ do
     findQuad mask i@(V2 x y) = do
       let j = V3 x y z
       let a = g G.! j
-      am <- getMask mask nz i
+      am <- getMask mask nx i
       if isEmptyVoxel am || not (G.isVoxelSideVisible g j side) then pure Nothing
       else do
         s <- peekQuad mask i a

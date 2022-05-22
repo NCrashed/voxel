@@ -26,7 +26,7 @@ parseFile :: MonadIO m => FilePath -> m (Either String VoxFile)
 parseFile = liftIO . fmap parseVox . BS.readFile
 
 parseVox :: ByteString -> Either String VoxFile
-parseVox = parseOnly (voxParser <* endOfInput)
+parseVox = parseOnly (voxParser ) -- <* endOfInput
 
 voxParser :: Parser VoxFile
 voxParser = do

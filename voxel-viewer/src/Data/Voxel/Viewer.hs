@@ -4,6 +4,7 @@ module Data.Voxel.Viewer(
 
 import Control.Lens ((^.))
 import Control.Monad
+import Data.Bits
 import Data.Int
 import Data.Maybe
 import Data.Proxy
@@ -12,7 +13,9 @@ import Data.Voxel.Grid.Unbox.Polygon
 import Data.Word
 import Debug.Trace
 import Graphics.GPipe
+import Data.Voxel.MagicaVoxel (convertMagica)
 
+import qualified Data.MagicaVoxel as MV 
 import qualified Data.Vector.Storable as V
 import qualified Data.Voxel.Grid.Unbox as G
 import qualified Data.Voxel.Grid.Unbox.Mutable as GM
@@ -21,7 +24,7 @@ import qualified Graphics.GPipe.Context.GLFW as GLFW
 
 runViewer :: IO ()
 runViewer = do
-  traceShowM M.cube
+  -- traceShowM M.cube
   runContextT GLFW.defaultHandleConfig $ do
 
     let wcfg = (GLFW.defaultWindowConfig "voxel viewer") {
@@ -29,16 +32,21 @@ runViewer = do
           , GLFW.configHeight = 600
           }
     win <- newWindow (WindowFormatColorDepth RGBA8 Depth16) wcfg
+    voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/teapot.vox"
+    rawModel <- either (fail . ("Vox convert: " ++)) pure $ convertMagica voxModel
     -- Create vertex data buffers
     let model :: G.VoxelGrid (V3 Float)
         model = G.create $ do
-          g <- GM.new 2
-          GM.write g (V3 0 0 0) $ V3 1.0 0.0 0.0
-          GM.write g (V3 1 0 0) $ V3 0.0 1.0 0.0
-          GM.write g (V3 0 1 0) $ V3 0.0 0.0 1.0
-          GM.write g (V3 0 0 1) $ V3 1.0 0.0 1.0
-          GM.write g (V3 1 0 1) $ V3 1.0 0.0 1.0
+          let sn = 10
+          let sn2 = sn `div` 2
+          let r = sn2
+          let size@(V3 sx sy sz) = V3 sn sn sn
+          g <- GM.new size
+          let c = V3 1.0 0.4 0.5
+          let is = [V3 x y z | x <- [0 .. sx-1], y <- [0 .. sy-1], z <- [0 .. sz-1], (x-sn2)*(x-sn2) + (y-sn2)*(y-sn2) + (z-sn2)*(z-sn2) <= r*r]
+          mapM_ (\i -> GM.write g i c) is   
           pure g
+        -- model = G.map word32Color rawModel
     buffers <- meshBuffers $ triangulate TriangulateTriangles model
     -- Make a Render action that returns a PrimitiveArray for the cube
     let makePrimitives = meshBufferArray (Proxy :: Proxy (V3 Float)) TriangleList buffers
@@ -111,3 +119,11 @@ proj modelViewProj normMat MeshVertex{..} = let
 -- Set color from sampler and apply directional light
 light :: Num a => V3 a -> V3 a -> V4 a
 light normal (V3 r g b) = V4 r g b 1 * pure (normal `dot` V3 0 0 1)
+
+word32Color :: Word32 -> V3 Float
+word32Color w = V3 r g b 
+  where 
+    w' :: Int = fromIntegral w
+    r = (fromIntegral (w' .&. 0xFF) :: Float) / 255.0
+    g = (fromIntegral (shiftR (w' .&. 0xFF00) 8) :: Float) / 255.0
+    b = (fromIntegral (shiftR (w' .&. 0xFF0000) 16) :: Float) / 255.0

@@ -35,6 +35,8 @@ library
     , vector          >= 0.10     && < 0.13
     , voxel           >= 0.0      && < 0.1
     , voxel-GPipe     >= 0.0      && < 0.1
+    , voxel-MagicaVoxel
+    , MagicaVoxel-vox
   default-language:    Haskell2010
   default-extensions:
     BangPatterns
