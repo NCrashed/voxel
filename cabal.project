@@ -3,4 +3,5 @@ packages:
   MagicaVoxel-vox
   voxel
   voxel-GPipe
+  voxel-MagicaVoxel
   voxel-viewer

@@ -18,8 +18,9 @@ let
     .ghc.environment*
     '';
   haskOverrides = new: old: rec {
-    voxel = new.callCabal2nix "voxel" (ignore ./.) {};
+    voxel = new.callCabal2nix "voxel" (ignore ./voxel) {};
     voxel-GPipe = new.callCabal2nix "voxel-GPipe" (ignore ./voxel-GPipe) {};
+    voxel-MagicaVoxel = new.callCabal2nix "voxel-MagicaVoxel" (ignore ./voxel-MagicaVoxel) {};
     voxel-viewer = new.callCabal2nix "voxel-viewer" (ignore ./voxel-viewer) {};
     MagicaVoxel-vox = new.callCabal2nix "MagicaVoxel-vox" (ignore ./MagicaVoxel-vox) {};
     GPipe = new.callPackage ./derivations/GPipe.nix {};
@@ -27,5 +28,5 @@ let
   };
 in {
   inherit pkgs;
-  packages = { inherit (pkgs.haskellPackages) voxel voxel-GPipe voxel-viewer MagicaVoxel-vox; };
+  packages = { inherit (pkgs.haskellPackages) voxel voxel-GPipe voxel-MagicaVoxel voxel-viewer MagicaVoxel-vox; };
 }
