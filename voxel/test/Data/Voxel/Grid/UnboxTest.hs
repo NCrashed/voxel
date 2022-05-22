@@ -21,5 +21,5 @@ unit_unbox_create :: IO ()
 unit_unbox_create = sequence_ [single i | i <- [1 .. 10]]
   where
     single n = do
-      let g :: VoxelGrid Int = G.create $ M.replicate n 42
+      let g :: VoxelGrid Int = G.create $ M.replicate (V3 n n n) 42
       assertEqual ("Grid of size " <> show n) (G.toList g) $ replicate (n*n*n) 42

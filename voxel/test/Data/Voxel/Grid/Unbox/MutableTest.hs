@@ -14,14 +14,17 @@ unit_mutable_newSizes :: IO ()
 unit_mutable_newSizes = traverse_ single [0, 1, 3, 16, 32, 64, 128]
   where
     single n = do
-      g :: IOVoxelGrid Int <- GM.new n
+      g :: IOVoxelGrid Int <- GM.new (V3 n n n)
       assertEqual "length" (n*n*n) $ GM.length g
-      assertEqual "size" n $ GM.size g
+      assertEqual "size" (V3 n n n) $ GM.size g
 
-prop_indeciesIdenmponent :: Int -> Int -> Bool
+prop_indeciesIdenmponent :: V3 (NonNegative Int) -> Int -> Bool
 prop_indeciesIdenmponent n i
-  | n == 0 = True
-  | otherwise = GM.posToIndex n (GM.indexToPos n i) == i
+  | nx == 0 || ny == 0 || nz == 0 = True
+  | otherwise = GM.posToIndex n' (GM.indexToPos n' i) == i
+  where 
+    n' = V3 nx ny nz
+    (V3 (NonNegative nx) (NonNegative ny) (NonNegative nz)) = n
 
 unit_mutable_indecies :: IO ()
 unit_mutable_indecies = do
@@ -73,11 +76,11 @@ unit_mutable_indeciesBounds = do
 
 unit_mutable_readWrite :: IO ()
 unit_mutable_readWrite = traverse_ single [(s, GM.indexToPos s i, a)|
-    s <- sizes
-  , i <- [0 .. s*s*s-1]
+    s@(V3 sx sy sz) <- sizes
+  , i <- [0 .. sx*sy*sz-1]
   , a <- values]
   where
-    sizes = [1, 3, 16, 32]
+    sizes = [V3 1 1 1, V3 3 3 3, V3 16 16 16, V3 32 32 32]
     values = [0, (-42), 42, maxBound, minBound]
     single (n,i,a) = do
       g :: IOVoxelGrid Int <- GM.new n
@@ -104,14 +107,14 @@ unit_mutable_readWriteUnbound = do
 
 unit_mutable_swaps :: IO ()
 unit_mutable_swaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a2)|
-    s <- sizes
-  , i1 <- [0 .. s*s*s-1]
-  , let i2 = s*s*s - 1 - i1
+    s@(V3 sx sy sz) <- sizes
+  , i1 <- [0 .. sx*sy*sz-1]
+  , let i2 = sx*sy*sz - 1 - i1
   , i1 /= i2
   , a1 <- values
   , a2 <- reverse values]
   where
-    sizes = [1, 3, 16, 32]
+    sizes = [V3 1 1 1, V3 3 3 3, V3 16 16 16, V3 32 32 32]
     values = [0, (-42), 42, maxBound, minBound]
     single args@(n,i1,i2,a1,a2) = do
       g :: IOVoxelGrid Int <- GM.new n
@@ -125,11 +128,11 @@ unit_mutable_swaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i
 
 unit_mutable_unsafeReadWrite :: IO ()
 unit_mutable_unsafeReadWrite = traverse_ single [(s, GM.indexToPos s i, a)|
-    s <- sizes
-  , i <- [0 .. s*s*s-1]
+    s@(V3 sx sy sz) <- sizes
+  , i <- [0 .. sx*sy*sz-1]
   , a <- values]
   where
-    sizes = [1, 3, 16, 32]
+    sizes = [V3 1 1 1, V3 3 3 3, V3 16 16 16, V3 32 32 32]
     values = [0, (-42), 42, maxBound, minBound]
     single (n,i,a) = do
       g :: IOVoxelGrid Int <- GM.new n
@@ -139,14 +142,14 @@ unit_mutable_unsafeReadWrite = traverse_ single [(s, GM.indexToPos s i, a)|
 
 unit_mutable_unsafeSwaps :: IO ()
 unit_mutable_unsafeSwaps = traverse_ single [(s, GM.indexToPos s i1, GM.indexToPos s i2, a1, a2)|
-    s <- sizes
-  , i1 <- [0 .. s*s*s-1]
-  , let i2 = s*s*s - 1 - i1
+    s@(V3 sx sy sz) <- sizes
+  , i1 <- [0 .. sx*sy*sz-1]
+  , let i2 = sx*sy*sz - 1 - i1
   , i1 /= i2
   , a1 <- values
   , a2 <- reverse values]
   where
-    sizes = [1, 3, 16, 32]
+    sizes = [V3 1 1 1, V3 3 3 3, V3 16 16 16, V3 32 32 32]
     values = [0, (-42), 42, maxBound, minBound]
     single args@(n,i1,i2,a1,a2) = do
       g :: IOVoxelGrid Int <- GM.new n
