@@ -5,10 +5,11 @@ module Data.MagicaVoxel.Parser(
 
 import Control.Applicative
 import Control.Monad.IO.Class
+import Control.Monad.State.Strict
 import Data.Array.ST (newArray, readArray, MArray, STUArray)
 import Data.Array.Unsafe (castSTUArray)
 import Data.Attoparsec.Binary
-import Data.Attoparsec.ByteString
+import Data.Attoparsec.ByteString as A
 import Data.Bits
 import Data.ByteString (ByteString)
 import Data.Functor
@@ -19,6 +20,7 @@ import Data.Word
 import GHC.ST (runST, ST)
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.Set as S
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
@@ -27,7 +29,7 @@ parseFile :: MonadIO m => FilePath -> m (Either String VoxFile)
 parseFile = liftIO . fmap parseVox . BS.readFile
 
 parseVox :: ByteString -> Either String VoxFile
-parseVox = parseOnly (voxParser ) -- <* endOfInput
+parseVox = parseOnly (voxParser <* endOfInput)
 
 voxParser :: Parser VoxFile
 voxParser = do
@@ -36,9 +38,41 @@ voxParser = do
   chunk_ "MAIN"
   nm <- packChunk
   voxFileModels <- V.replicateM (fromIntegral nm) parseModel
-  voxFilePallete <- optional parsePalette
-  voxFileMaterials <- V.fromList <$> many parseMaterial
-  pure VoxFile{..}
+  let voxFilePallete = Nothing 
+  let voxFileMaterials = V.empty
+  execStateT go VoxFile{..}
+  where 
+    go = do 
+      isEnd <- lift atEnd
+      if isEnd then pure ()
+      else do 
+        name <- lift $ A.take 4
+        chunkLen <- lift anyWord32 
+        children <- lift anyWord32 
+        case name of 
+          "nTRN" -> lift . void $ A.take (fromIntegral chunkLen) -- TODO: Transform chunk
+          "nGRP" -> lift . void $ do -- TODO: Group chunk
+            _ <- A.take (fromIntegral chunkLen) 
+            replicateM (fromIntegral children) anyWord32
+          "nSHP" -> lift . void $ do -- TODO: Shape Node Chunk
+            A.take (fromIntegral chunkLen)
+          "LAYR" -> lift . void $ do -- TODO: Layer Chunk
+            A.take (fromIntegral chunkLen)
+          "RGBA" -> do 
+            palette <- lift parsePalette
+            modify' $ \s -> s { voxFilePallete = Just palette }
+          "MATL" -> lift . void $ do -- TODO: New material chunk
+            A.take (fromIntegral chunkLen)
+          "rOBJ" -> lift . void $ do -- TODO: Render Objects Chunk
+            A.take (fromIntegral chunkLen)
+          "SIZE" -> lift . void $ do -- TODO: extra SIZE chunk
+            A.take (fromIntegral chunkLen)
+          "XYZI" -> lift . void $ do -- TODO: extra XYZI chunk 
+            A.take (fromIntegral chunkLen)
+          "IMAP" -> lift . void $ do -- TODO: Index MAP Chunk
+            A.take (fromIntegral chunkLen)
+          _ -> fail $ "Unknown chunk: " ++ BSC.unpack name 
+        go 
 
 -- | Parse chunk with amount of models in file
 packChunk :: Parser Word32
@@ -50,7 +84,6 @@ parseModel = do
   chunk_ "XYZI"
   n <- anyWord32
   vs <- VU.replicateM (fromIntegral n) peekVoxel
-  
   pure $ VoxModel x y z vs
 
 parseSize :: Parser (Word32, Word32, Word32)
@@ -60,9 +93,7 @@ peekVoxel :: Parser Voxel
 peekVoxel = Voxel <$> anyWord8 <*> anyWord8 <*> anyWord8 <*> anyWord8
 
 parsePalette :: Parser VoxPalette
-parsePalette = do
-  chunk_ "RGBA"
-  VU.replicateM 256 anyWord32
+parsePalette = VU.replicateM 256 (toRgba <$> anyWord32le)
 
 parseMaterial :: Parser VoxMaterial
 parseMaterial = do

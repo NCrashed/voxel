@@ -6,6 +6,9 @@ module Data.MagicaVoxel.Types(
   , Voxel(..)
   , VoxModel(..)
   , VoxPalette
+  , RGBA(..)
+  , toRgba
+  , fromRgba
   , defaultPalette
   , VoxMaterial(..)
   , VoxMaterialProperty(..)
@@ -17,7 +20,9 @@ import Data.Set (Set)
 import Data.Vector (Vector)
 import Data.Vector.Unboxed.Deriving
 import Data.Word
+import Data.Bits
 import GHC.Generics (Generic)
+import Debug.Trace 
 
 import qualified Data.Vector.Unboxed as VU
 
@@ -96,11 +101,31 @@ data VoxMaterial = VoxMaterial {
 } deriving (Show, Generic)
 
 -- | Color palette (256 length). Note that color index starts with 1.
-type VoxPalette = VU.Vector Word32
+type VoxPalette = VU.Vector RGBA
+
+-- | Store Red Green Blue Alpha components in 0 .. 255 range 
+data RGBA = RGBA !Word8 !Word8 !Word8 !Word8
+  deriving (Eq, Ord, Show, Read, Generic)
+
+derivingUnbox "RGBA"
+    [t| RGBA -> Word32 |]
+    [| fromRgba |]
+    [| toRgba |]
+  
+fromRgba :: RGBA -> Word32 
+fromRgba (RGBA r g b a) = fromIntegral r + (fromIntegral g) `shiftL` 8 + (fromIntegral b) `shiftL` 16 + (fromIntegral a) `shiftL` 24  
+
+toRgba :: Word32 -> RGBA 
+toRgba w = RGBA r g b a 
+  where 
+    r = fromIntegral (w .&. 0x000000FF) 
+    g = fromIntegral ((w .&. 0x0000FF00) `shiftR` 8) 
+    b = fromIntegral ((w .&. 0x00FF0000) `shiftR` 16) 
+    a = fromIntegral ((w .&. 0xFF000000) `shiftR` 24) 
 
 -- | Which palette is used when no palette is stored in .vox file
 defaultPalette :: VoxPalette
-defaultPalette = VU.fromList [
+defaultPalette = VU.fromList $ fmap toRgba [
   0x00000000, 0xffffffff, 0xffccffff, 0xff99ffff, 0xff66ffff, 0xff33ffff, 0xff00ffff, 0xffffccff, 0xffccccff, 0xff99ccff, 0xff66ccff, 0xff33ccff, 0xff00ccff, 0xffff99ff, 0xffcc99ff, 0xff9999ff,
   0xff6699ff, 0xff3399ff, 0xff0099ff, 0xffff66ff, 0xffcc66ff, 0xff9966ff, 0xff6666ff, 0xff3366ff, 0xff0066ff, 0xffff33ff, 0xffcc33ff, 0xff9933ff, 0xff6633ff, 0xff3333ff, 0xff0033ff, 0xffff00ff,
   0xffcc00ff, 0xff9900ff, 0xff6600ff, 0xff3300ff, 0xff0000ff, 0xffffffcc, 0xffccffcc, 0xff99ffcc, 0xff66ffcc, 0xff33ffcc, 0xff00ffcc, 0xffffcccc, 0xffcccccc, 0xff99cccc, 0xff66cccc, 0xff33cccc,

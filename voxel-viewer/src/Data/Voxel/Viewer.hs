@@ -6,14 +6,14 @@ import Control.Lens ((^.))
 import Control.Monad
 import Data.Bits
 import Data.Int
+import Data.MagicaVoxel.Types (RGBA(..))
 import Data.Maybe
 import Data.Proxy
 import Data.Voxel.GPipe.Mesh
 import Data.Voxel.Grid.Unbox.Polygon
-import Data.Word
-import Debug.Trace
-import Graphics.GPipe
 import Data.Voxel.MagicaVoxel (convertMagica)
+import Data.Word
+import Graphics.GPipe
 
 import qualified Data.MagicaVoxel as MV 
 import qualified Data.Vector.Storable as V
@@ -31,20 +31,10 @@ runViewer = do
           , GLFW.configHeight = 600
           }
     win <- newWindow (WindowFormatColorDepth RGBA8 Depth16) wcfg
-    voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/teapot.vox"
+    voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/house.vox"
     rawModel <- either (fail . ("Vox convert: " ++)) pure $ convertMagica voxModel
     -- Create vertex data buffers
     let model :: G.VoxelGrid (V3 Float)
-        -- model = G.create $ do
-        --   let sn = 12
-        --   let sn2 = sn `div` 2
-        --   let r = sn2
-        --   let size@(V3 sx sy sz) = V3 sn sn sn
-        --   g <- GM.new size
-        --   let c = V3 1.0 0.4 0.5
-        --   let is = [V3 x y z | x <- [0 .. sx-1], y <- [0 .. sy-1], z <- [0 .. sz-1], (x-sn2)*(x-sn2) + (y-sn2)*(y-sn2) + (z-sn2)*(z-sn2) <= r*r]
-        --   mapM_ (\i@(V3 x y z) -> GM.write g i $ V3 0.5 0.4 0.5) is   
-        --   pure g
         model = G.map word32Color rawModel
     buffers <- meshBuffers $ triangulate TriangulateTriangles model
     -- Make a Render action that returns a PrimitiveArray for the cube
@@ -81,10 +71,10 @@ loop :: Window os RGBAFloat Depth
 loop win shader makePrimitives uniform ang = do
   -- Write this frames uniform value
   size@(V2 w h) <- getFrameBufferSize win
-  let modelRot = fromQuaternion (axisAngle (V3 1 0.5 0.3) ang)
-      modelMat = mkTransformationMat modelRot (pure 0)
-      projMat = perspective (pi/9) (fromIntegral w / fromIntegral h) 1 100
-      viewMat = mkTransformationMat identity (- V3 0 0 5)
+  let modelRot = fromQuaternion (axisAngle (V3 0 0 1) ang)
+      modelMat = mkTransformationMat modelRot (pure 0) !*! mkTransformationMat identity (-V3 0.5 0.5 0)
+      projMat = perspective (pi/6) (fromIntegral w / fromIntegral h) 1 100
+      viewMat = mkTransformation (axisAngle (V3 1 0 0) (-pi/3)) (- V3 0 0 5)
       viewProjMat = projMat !*! viewMat !*! modelMat
       normMat = modelRot
   writeBuffer uniform 0 [(viewProjMat, normMat)]
@@ -116,13 +106,15 @@ proj modelViewProj normMat MeshVertex{..} = let
   in (modelViewProj !* V4 px py pz 1, (fmap Flat $ normMat !* meshPrimNormal, meshPrimData))
 
 -- Set color from sampler and apply directional light
-light :: Num a => V3 a -> V3 a -> V4 a
-light normal (V3 r g b) = V4 r g b 1 * pure (normal `dot` V3 0 0 1)
-
-word32Color :: Word32 -> V3 Float
-word32Color w = V3 r g b 
+light :: (Num a, Floating a) => V3 a -> V3 a -> V4 a
+light normal col = V4 r g b 1 * pure (normal `dot` V3 (-0.577) (-0.577) 0.577)
   where 
-    w' :: Int = fromIntegral w
-    r = (fromIntegral (w' .&. 0xFF) :: Float) / 255.0
-    g = (fromIntegral (shiftR (w' .&. 0xFF00) 8) :: Float) / 255.0
-    b = (fromIntegral (shiftR (w' .&. 0xFF0000) 16) :: Float) / 255.0
+    gamma = 2.2
+    V3 r g b = col ** gamma
+
+word32Color :: RGBA -> V3 Float
+word32Color (RGBA r g b _) = V3 r' g' b'
+  where 
+    r' = fromIntegral r / 255.0
+    g' = fromIntegral g / 255.0
+    b' = fromIntegral b / 255.0

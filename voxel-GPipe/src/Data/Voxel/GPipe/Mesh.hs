@@ -12,6 +12,7 @@ module Data.Voxel.GPipe.Mesh(
   ) where
 
 import Control.Arrow
+import Control.Monad
 import Control.Monad.IO.Class
 import Data.Int
 import Data.Proxy
@@ -138,17 +139,26 @@ writeMeshBuffers :: (MonadIO m, ContextHandler ctx, MeshBufferExt a)
   -> MeshBuffers os (BufferOf os a)
   -> ContextT ctx os m ()
 writeMeshBuffers M.Mesh{..} MeshBuffers{..} = do
-  writeBuffer meshBuffPositions 0 $ V.toList meshVertices
-  writeBuffer meshBuffNormals 0 $ V.toList meshNormals
-  writeBuffer meshBuffUvs 0 $ V.toList meshUvs
-  writeBuffer meshBuffIndecies 0 $ V.toList meshIndecies
+  guardedWrite "positions" meshBuffPositions meshVertices
+  guardedWrite "normals" meshBuffNormals meshNormals
+  guardedWrite "uvs" meshBuffUvs meshUvs
+  guardedWrite "indicies" meshBuffIndecies meshIndecies
   writeMeshDataBuffer meshBuffData 0 meshData
+  where 
+    guardedWrite name buff vec = do
+      unless (bufferLength buff == V.length vec) $ 
+        fail $ name ++ " buffer size " ++ 
+          show (bufferLength buff) ++ 
+          ", but expected " ++ (show $ V.length vec)
+      writeBuffer buff 0 $ V.toList vec
 
 -- | Create new buffers and fill it with vertecies from mesh
 meshBuffers :: forall a m ctx os . (MonadIO m, ContextHandler ctx, MeshBufferExt a)
   => Mesh a
   -> ContextT ctx os m (MeshBuffers os (BufferOf os a))
 meshBuffers m = do
+  when (M.vertexNumber m == 0 || M.triangleNumber m == 0) $ 
+    fail "Cannot fill mesh buffers with no vertecies!"
   bs <- newMeshBuffers (Proxy :: Proxy a) (M.vertexNumber m) (M.triangleNumber m)
   writeMeshBuffers m bs
   pure bs
