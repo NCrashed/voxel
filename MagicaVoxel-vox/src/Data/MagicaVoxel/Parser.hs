@@ -71,6 +71,10 @@ voxParser = do
             A.take (fromIntegral chunkLen)
           "IMAP" -> lift . void $ do -- TODO: Index MAP Chunk
             A.take (fromIntegral chunkLen)
+          "rCAM" -> lift . void $ do -- TODO: Index rCAM Chunk
+            A.take (fromIntegral chunkLen)
+          "NOTE" -> lift . void $ do -- TODO: Index NOTE Chunk
+            A.take (fromIntegral chunkLen)
           _ -> fail $ "Unknown chunk: " ++ BSC.unpack name 
         go 
 

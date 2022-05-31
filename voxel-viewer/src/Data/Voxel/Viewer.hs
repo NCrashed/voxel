@@ -70,11 +70,12 @@ runViewer = do
           , GLFW.configHeight = 600
           }
     win <- newWindow (WindowFormatColorDepth RGBA8 Depth16) wcfg
-    voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/house.vox"
+    voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/harvester_full.vox"
     rawModel <- either (fail . ("Vox convert: " ++)) pure $ convertMagica voxModel
     -- Create vertex data buffers
     let model :: G.VoxelGrid (V3 Float)
-        model = generateMap -- G.map word32Color rawModel
+        -- model = generateMap 
+        model = G.map word32Color rawModel
     buffers <- meshBuffers $ triangulate TriangulateTriangles model
     -- Make a Render action that returns a PrimitiveArray for the cube
     let makePrimitives = meshBufferArray (Proxy :: Proxy (V3 Float)) TriangleList buffers
