@@ -12,6 +12,7 @@ import Data.Voxel.Generator
 import Data.Voxel.GPipe.Mesh
 import Data.Voxel.Grid.Unbox.Polygon
 import Data.Voxel.MagicaVoxel (convertMagica)
+import Data.Voxel.Viewer.Camera
 import Graphics.GPipe
 
 import qualified Data.MagicaVoxel as MV 
@@ -27,9 +28,11 @@ runViewer :: IO ()
 runViewer = do
   runContextT GLFW.defaultHandleConfig $ do
 
+    let initWidth = 800
+    let initHeight = 600
     let wcfg = (GLFW.defaultWindowConfig "voxel viewer") {
-            GLFW.configWidth = 800
-          , GLFW.configHeight = 600
+            GLFW.configWidth = initWidth
+          , GLFW.configHeight = initHeight
           }
     win <- newWindow (WindowFormatColorDepth RGBA8 Depth16) wcfg
     voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/harvester_full.vox"
@@ -63,25 +66,33 @@ runViewer = do
 
       drawWindowColorDepth (const (win, colorOption, depthOption)) litFragsWithDepth
 
+    let camera = Camera {
+          cameraPosition = - V3 0 0 5
+        , cameraRotation = axisAngle (V3 1 0 0) (-pi/3)
+        , cameraAngle = (pi/9)
+        , cameraAspect = (fromIntegral initWidth / fromIntegral initHeight)
+        , cameraNear = 1 
+        , cameraFar = 100
+        }
     -- Run the loop
-    loop win shader makePrimitives uniform 0 0
+    loop win shader makePrimitives uniform camera 0 0
 
 loop :: Window os RGBAFloat Depth
   -> (ShaderEnvironment -> Render os ())
   -> Vector (Render
        os (PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float)))))
   -> Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float)))
+  -> Camera Float
   -> Float
   -> Int 
   -> ContextT GLFW.Handle os IO ()
-loop win shader makePrimitives uniform ang lod = do
+loop win shader makePrimitives uniform !camera !ang !lod = do
   -- Write this frames uniform value
   size@(V2 w h) <- getFrameBufferSize win
+  let newCam = camera { cameraAspect = (fromIntegral w / fromIntegral h) }
   let modelRot = fromQuaternion (axisAngle (V3 0 0 1) ang)
       modelMat = mkTransformationMat modelRot (pure 0) !*! mkTransformationMat identity (-V3 0.5 0.5 0)
-      projMat = perspective (pi/9) (fromIntegral w / fromIntegral h) 1 100
-      viewMat = mkTransformation (axisAngle (V3 1 0 0) (-pi/3)) (- V3 0 0 5)
-      viewProjMat = projMat !*! viewMat !*! modelMat
+      viewProjMat = cameraProjMat newCam !*! cameraViewMat newCam !*! modelMat
       normMat = modelRot
   writeBuffer uniform 0 [(viewProjMat, normMat)]
 
@@ -105,7 +116,7 @@ loop win shader makePrimitives uniform ang lod = do
           _ -> lod   
   newlod <- getPressedLod [GLFW.Key'0, GLFW.Key'1, GLFW.Key'2, GLFW.Key'3, GLFW.Key'4, GLFW.Key'5, GLFW.Key'6]
   unless (fromMaybe False closeRequested) $
-    loop win shader makePrimitives uniform ((ang + 0.005) `mod''` (2*pi)) newlod
+    loop win shader makePrimitives uniform newCam ((ang + 0.005) `mod''` (2*pi)) newlod
 
 data ShaderEnvironment = ShaderEnvironment
   { primitives :: PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float)))

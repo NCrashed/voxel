@@ -26,6 +26,7 @@ library
   hs-source-dirs:      src
   exposed-modules:
     Data.Voxel.Viewer
+    Data.Voxel.Viewer.Camera
     Data.Voxel.Generator
   build-depends:
       base            >= 4.5      && < 5
