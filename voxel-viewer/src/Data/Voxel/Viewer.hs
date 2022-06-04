@@ -39,8 +39,8 @@ runViewer = do
     rawModel <- either (fail . ("Vox convert: " ++)) pure $ convertMagica voxModel
     -- Create vertex data buffers
     let model :: G.VoxelGrid (V3 Float)
-        model = generateMap 
-        -- model = G.map word32Color rawModel
+        -- model = generateMap 
+        model = G.map word32Color rawModel
     let renderModel :: L.LodMesh (V3 Float)
         renderModel = L.new TriangulateTriangles model
     buffers <- traverse meshBuffers $ L.allLods renderModel
@@ -112,7 +112,7 @@ loop win shader makePrimitives uniform !camera !ang !lod = do
       getPressedLod ks = do 
         mks <- traverse (uncurry getPressed) $ [0 ..] `zip` ks 
         pure $ case catMaybes mks of 
-          i:_ -> i 
+          i:_ -> min (GV.length makePrimitives - 1) i 
           _ -> lod   
   newlod <- getPressedLod [GLFW.Key'0, GLFW.Key'1, GLFW.Key'2, GLFW.Key'3, GLFW.Key'4, GLFW.Key'5, GLFW.Key'6]
   unless (fromMaybe False closeRequested) $

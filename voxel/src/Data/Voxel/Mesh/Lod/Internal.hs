@@ -20,6 +20,7 @@ import Linear
 import qualified Data.IntMap as M 
 import qualified Data.Voxel.Grid.Unbox as G 
 import qualified Data.Voxel.Grid.Unbox.Mutable as GM
+import qualified Data.Voxel.Mesh as VM
 
 -- | Dynamically calculates LOD meshes for given grid
 data LodMesh a = LodMesh {
@@ -31,10 +32,12 @@ data LodMesh a = LodMesh {
 -- | Wrap voxel grid with LOD mesh
 new :: (Storable a, Unbox a, EmptyVoxel a, OpaqueVoxel a, CombineVoxel a, Eq a) 
   => TriangulateTopology -> VoxelGrid a -> LodMesh a 
-new topology grid = LodMesh grid n lods 
+new topology grid = LodMesh grid (length lodsList) lods 
   where 
     n = gridLods grid
-    lods = M.fromAscList $ reverse $ second (triangulate topology) <$> foldl' makeLod [(0, grid)] [1 .. n-1]
+    keepNonEmpty = filter ((\a -> VM.triangleNumber a /= 0) . snd) 
+    lodsList = reverse $ keepNonEmpty $ second (triangulate topology) <$> foldl' makeLod [(0, grid)] [1 .. n-1]
+    lods = M.fromAscList lodsList
     makeLod ((!j, g):acc) i = (i, nextGridLod g) : (j, g) : acc
     makeLod _ _ = error "LodMesh new impossible"
 
