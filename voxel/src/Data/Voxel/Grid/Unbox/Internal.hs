@@ -8,6 +8,7 @@ import Data.Voxel.Empty
 import Data.Voxel.Grid.Unbox.Mutable.Internal (MVoxelGrid, posToIndex, indexToPos, posInBounds)
 import Data.Voxel.Opaque
 import Data.Voxel.Side
+import GHC.Generics (Generic)
 import Linear
 import Prelude as P
 
@@ -22,7 +23,7 @@ data VoxelGrid a = VoxelGrid {
     voxelGridSize :: !(V3 Int)
   -- | Vector storage of grid
   , voxelGridData :: !(Vector a)
-  }
+  } deriving (Show, Generic)
 
 
 -- | Get size of dimensions of the grid

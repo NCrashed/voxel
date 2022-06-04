@@ -33,6 +33,7 @@ library
   exposed-modules:
     Data.Voxel.Buffer.Index
     Data.Voxel.Buffer.Vertex
+    Data.Voxel.Combine
     Data.Voxel.Empty
     Data.Voxel.Grid
     Data.Voxel.Grid.Unbox
@@ -42,12 +43,15 @@ library
     Data.Voxel.Grid.Unbox.Polygon
     Data.Voxel.Mesh
     Data.Voxel.Mesh.Internal
+    Data.Voxel.Mesh.Lod
+    Data.Voxel.Mesh.Lod.Internal
     Data.Voxel.Mesh.Mutable
     Data.Voxel.Mesh.Mutable.Internal
     Data.Voxel.Opaque
     Data.Voxel.Side
   build-depends:
       base            >= 4.5    && < 5
+    , containers      >= 0.5    && < 0.7
     , linear          >= 1.20   && < 2
     , primitive       >= 0.5    && < 0.8
     , vector          >= 0.10   && < 0.13

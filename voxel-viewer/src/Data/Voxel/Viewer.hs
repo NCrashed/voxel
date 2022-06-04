@@ -9,18 +9,21 @@ import Data.Int
 import Data.MagicaVoxel.Types (RGBA(..))
 import Data.Maybe
 import Data.Proxy
+import Data.STRef
+import Data.Vector (Vector)
 import Data.Voxel.GPipe.Mesh
 import Data.Voxel.Grid.Unbox.Polygon
 import Data.Voxel.MagicaVoxel (convertMagica)
 import Data.Word
 import Graphics.GPipe
-import Data.STRef
 
 import qualified Data.MagicaVoxel as MV 
+import qualified Data.Vector as GV
 import qualified Data.Vector.Storable as V
 import qualified Data.Voxel.Grid.Unbox as G
 import qualified Data.Voxel.Grid.Unbox.Mutable as GM
 import qualified Data.Voxel.Mesh as M
+import qualified Data.Voxel.Mesh.Lod as L
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 import qualified Math.Noise as N 
 
@@ -74,12 +77,15 @@ runViewer = do
     rawModel <- either (fail . ("Vox convert: " ++)) pure $ convertMagica voxModel
     -- Create vertex data buffers
     let model :: G.VoxelGrid (V3 Float)
-        -- model = generateMap 
-        model = G.map word32Color rawModel
-    buffers <- meshBuffers $ triangulate TriangulateTriangles model
+        model = generateMap 
+        -- model = G.map word32Color rawModel
+    let renderModel :: L.LodMesh (V3 Float)
+        renderModel = L.new TriangulateTriangles model
+    buffers <- traverse meshBuffers $ L.allLods renderModel
     -- Make a Render action that returns a PrimitiveArray for the cube
-    let makePrimitives = meshBufferArray (Proxy :: Proxy (V3 Float)) TriangleList buffers
-
+    let makeSingle = meshBufferArray (Proxy :: Proxy (V3 Float)) TriangleList
+    let makePrimitives = GV.fromList $ makeSingle <$> buffers
+          
     -- Create a buffer for the uniform values
     uniform :: Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float))) <- newBuffer 1
 
@@ -99,16 +105,17 @@ runViewer = do
       drawWindowColorDepth (const (win, colorOption, depthOption)) litFragsWithDepth
 
     -- Run the loop
-    loop win shader makePrimitives uniform 0
+    loop win shader makePrimitives uniform 0 0
 
 loop :: Window os RGBAFloat Depth
   -> (ShaderEnvironment -> Render os ())
-  -> Render
-       os (PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float))))
+  -> Vector (Render
+       os (PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float)))))
   -> Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float)))
   -> Float
+  -> Int 
   -> ContextT GLFW.Handle os IO ()
-loop win shader makePrimitives uniform ang = do
+loop win shader makePrimitives uniform ang lod = do
   -- Write this frames uniform value
   size@(V2 w h) <- getFrameBufferSize win
   let modelRot = fromQuaternion (axisAngle (V3 0 0 1) ang)
@@ -123,13 +130,23 @@ loop win shader makePrimitives uniform ang = do
   render $ do
     clearWindowColor win 0 -- Black
     clearWindowDepth win 1 -- Far plane
-    prims <- makePrimitives
+    prims <- makePrimitives GV.! lod
     shader $ ShaderEnvironment prims (FrontAndBack, ViewPort 0 size, DepthRange 0 1)
   swapWindowBuffers win
 
   closeRequested <- GLFW.windowShouldClose win
+  let getPressed i k = do 
+        ms <- GLFW.getKey win k
+        pure $ if ms == Just GLFW.KeyState'Pressed
+          then Just i else Nothing 
+      getPressedLod ks = do 
+        mks <- traverse (uncurry getPressed) $ [0 ..] `zip` ks 
+        pure $ case catMaybes mks of 
+          i:_ -> i 
+          _ -> lod   
+  newlod <- getPressedLod [GLFW.Key'0, GLFW.Key'1, GLFW.Key'2, GLFW.Key'3, GLFW.Key'4, GLFW.Key'5, GLFW.Key'6]
   unless (fromMaybe False closeRequested) $
-    loop win shader makePrimitives uniform ((ang + 0.005) `mod''` (2*pi))
+    loop win shader makePrimitives uniform ((ang + 0.005) `mod''` (2*pi)) newlod
 
 data ShaderEnvironment = ShaderEnvironment
   { primitives :: PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float)))
