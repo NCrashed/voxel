@@ -44,16 +44,16 @@ instance {-# OVERLAPPABLE #-} (CombineVoxel a, Num a, Eq a) => CombineVoxel (V3 
 
 instance CombineVoxel Float where 
   combineCube v0 v1 v2 v3 v4 v5 v6 v7 
-    = (v0 + v1 + v2 + v3 + v4 + v5 + v6 + v7) / 8.0
+    = sqrt $ (v0*v0 + v1*v1 + v2*v2 + v3*v3 + v4*v4 + v5*v5 + v6*v6 + v7*v7) / 8.0
   {-# INLINE combineCube #-}
 
-  combineVoxel a b = (a + b) / 2.0
+  combineVoxel a b = sqrt $ (a*a + b*b) / 2.0
   {-# INLINE combineVoxel #-}
 
 instance CombineVoxel Double where 
   combineCube v0 v1 v2 v3 v4 v5 v6 v7 
-    = (v0 + v1 + v2 + v3 + v4 + v5 + v6 + v7) / 8.0
+    = sqrt $ (v0*v0 + v1*v1 + v2*v2 + v3*v3 + v4*v4 + v5*v5 + v6*v6 + v7*v7) / 8.0
   {-# INLINE combineCube #-}
 
-  combineVoxel a b = (a + b) / 2.0
+  combineVoxel a b = sqrt $ (a*a + b*b) / 2.0
   {-# INLINE combineVoxel #-}
