@@ -18,15 +18,18 @@ let
     .ghc.environment*
     '';
   haskOverrides = new: old: rec {
+    fir = new.callPackage ./derivations/fir.nix {};
+    vector-sized = new.callPackage ./derivations/vector-sized.nix {};
+    GPipe = new.callPackage ./derivations/GPipe.nix {};
+    GPipe-GLFW = new.callCabal2nix "GPipe-GLFW" (ignore ./GPipe-GLFW) {};
+    MagicaVoxel-vox = new.callCabal2nix "MagicaVoxel-vox" (ignore ./MagicaVoxel-vox) {};
     voxel = new.callCabal2nix "voxel" (ignore ./voxel) {};
+    voxel-fir = new.callCabal2nix "voxel-fir" (ignore ./voxel-fir) {};
     voxel-GPipe = new.callCabal2nix "voxel-GPipe" (ignore ./voxel-GPipe) {};
     voxel-MagicaVoxel = new.callCabal2nix "voxel-MagicaVoxel" (ignore ./voxel-MagicaVoxel) {};
     voxel-viewer = new.callCabal2nix "voxel-viewer" (ignore ./voxel-viewer) {};
-    MagicaVoxel-vox = new.callCabal2nix "MagicaVoxel-vox" (ignore ./MagicaVoxel-vox) {};
-    GPipe = new.callPackage ./derivations/GPipe.nix {};
-    GPipe-GLFW = new.callCabal2nix "GPipe-GLFW" (ignore ./GPipe-GLFW) {};
   };
 in {
   inherit pkgs;
-  packages = { inherit (pkgs.haskellPackages) voxel voxel-GPipe voxel-MagicaVoxel voxel-viewer MagicaVoxel-vox; };
+  packages = { inherit (pkgs.haskellPackages) voxel voxel-fir voxel-GPipe voxel-MagicaVoxel voxel-viewer MagicaVoxel-vox; };
 }
