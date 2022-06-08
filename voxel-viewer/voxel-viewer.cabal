@@ -25,32 +25,55 @@ source-repository head
 library
   hs-source-dirs:      src
   exposed-modules:
-    Data.Voxel.Viewer
-    Data.Voxel.Viewer.Camera
     Data.Voxel.Generator
+    Data.Voxel.Viewer
+    Data.Voxel.Viewer.App
+    Data.Voxel.Viewer.App.Base
+    Data.Voxel.Viewer.App.Class
+    Data.Voxel.Viewer.Camera
+    Data.Voxel.Viewer.Scene
+    Data.Voxel.Viewer.Shader
+    Data.Voxel.Viewer.TriggerEvent
   build-depends:
       base            >= 4.5      && < 5
+    , dependent-sum
+    , exception-transformers
+    , GLFW-b
     , GPipe           >= 2.2.4    && < 2.3
     , GPipe-GLFW      >= 1.4.1.1  && < 1.5
     , lens            >= 4.10     && < 6
     , linear          >= 1.20     && < 2
+    , MagicaVoxel-vox
+    , mtl 
+    , Noise
+    , primitive
+    , ref-tf
+    , reflex          >= 0.6      && < 0.9
+    , stm
+    , transformers
     , vector          >= 0.10     && < 0.13
     , voxel           >= 0.0      && < 0.1
     , voxel-GPipe     >= 0.0      && < 0.1
     , voxel-MagicaVoxel
-    , MagicaVoxel-vox
-    , Noise
   default-language:    Haskell2010
   default-extensions:
     BangPatterns
+    ConstraintKinds
+    DeriveFunctor
     DeriveGeneric
     FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
     OverloadedStrings
     RankNTypes
     RecordWildCards
     ScopedTypeVariables
     TupleSections
     TypeFamilies
+    UndecidableInstances
 
 executable voxel-viewer
   hs-source-dirs:      app
