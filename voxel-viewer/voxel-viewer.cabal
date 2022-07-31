@@ -33,6 +33,7 @@ library
     Data.Voxel.Viewer.Camera
     Data.Voxel.Viewer.Scene
     Data.Voxel.Viewer.Shader
+    Data.Voxel.Viewer.Shader.Phong
     Data.Voxel.Viewer.TriggerEvent
   build-depends:
       base            >= 4.5      && < 5

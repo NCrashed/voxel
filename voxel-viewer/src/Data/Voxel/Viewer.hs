@@ -6,7 +6,7 @@ module Data.Voxel.Viewer(
 import Data.Vector (Vector)
 import Data.Voxel.Viewer.App.Class
 import Data.Voxel.Viewer.Camera
-import Data.Voxel.Viewer.Shader 
+import Data.Voxel.Viewer.Shader.Phong
 import Data.Voxel.Viewer.Scene
 import Graphics.GPipe
 
