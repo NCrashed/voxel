@@ -1,5 +1,5 @@
 {-# LANGUAGE Arrows #-}
-module Data.Voxel.Viewer.Shader.Flat(
+module Data.Voxel.Shader.Flat(
     ShaderEnvironment(..)
   , MatrixUniform
   , pipelineShader

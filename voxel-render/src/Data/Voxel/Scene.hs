@@ -1,4 +1,4 @@
-module Data.Voxel.Viewer.Scene(
+module Data.Voxel.Scene(
     SceneModel
   , prepareScene
   ) where

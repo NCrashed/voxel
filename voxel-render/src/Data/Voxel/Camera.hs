@@ -1,4 +1,4 @@
-module Data.Voxel.Viewer.Camera(
+module Data.Voxel.Camera(
     Camera(..)
   , cameraViewMat
   , cameraProjMat

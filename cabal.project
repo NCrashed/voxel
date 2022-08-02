@@ -6,5 +6,6 @@ packages:
   voxel-fir
   voxel-GPipe
   voxel-MagicaVoxel
+  voxel-render
   voxel-viewer
   examples/gameloop

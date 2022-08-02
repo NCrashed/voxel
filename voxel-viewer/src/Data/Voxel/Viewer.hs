@@ -7,9 +7,9 @@ import Control.Monad.IO.Class
 import Data.Vector (Vector)
 import Data.Voxel.App
 import Data.Voxel.App.Class
-import Data.Voxel.Viewer.Camera
-import Data.Voxel.Viewer.Scene
-import Data.Voxel.Viewer.Shader.Phong
+import Data.Voxel.Camera
+import Data.Voxel.Scene
+import Data.Voxel.Shader.Phong
 import Graphics.GPipe
 import Reflex 
 

@@ -1,4 +1,4 @@
-module Data.Voxel.Viewer.Shader.Phong(
+module Data.Voxel.Shader.Phong(
     ShaderEnvironment(..)
   , MatrixUniform
   , pipelineShader
@@ -9,8 +9,8 @@ import Control.Lens ((^.))
 import Data.Voxel.GPipe.Mesh
 import Graphics.GPipe
 import Data.Vector (Vector)
-import Data.Voxel.Viewer.Camera
-import Data.Voxel.Viewer.Scene
+import Data.Voxel.Camera
+import Data.Voxel.Scene
 import Reflex 
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
