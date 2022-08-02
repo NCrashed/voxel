@@ -28,8 +28,9 @@ let
     voxel-GPipe = new.callCabal2nix "voxel-GPipe" (ignore ./voxel-GPipe) {};
     voxel-MagicaVoxel = new.callCabal2nix "voxel-MagicaVoxel" (ignore ./voxel-MagicaVoxel) {};
     voxel-viewer = new.callCabal2nix "voxel-viewer" (ignore ./voxel-viewer) {};
+    voxel-gameloop = new.callCabal2nix "voxel-gameloop" (ignore ./examples/gameloop) {};
   };
 in {
   inherit pkgs;
-  packages = { inherit (pkgs.haskellPackages) voxel voxel-fir voxel-GPipe voxel-MagicaVoxel voxel-viewer MagicaVoxel-vox; };
+  packages = { inherit (pkgs.haskellPackages) voxel voxel-fir voxel-GPipe voxel-MagicaVoxel voxel-viewer MagicaVoxel-vox voxel-gameloop; };
 }
