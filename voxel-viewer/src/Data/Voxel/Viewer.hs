@@ -3,19 +3,18 @@ module Data.Voxel.Viewer(
   , viewerApp
   ) where
 
+import Control.Monad.IO.Class
 import Data.Vector (Vector)
-import Data.Voxel.Viewer.App.Class
+import Data.Voxel.App
+import Data.Voxel.App.Class
 import Data.Voxel.Viewer.Camera
-import Data.Voxel.Viewer.Shader.Phong
 import Data.Voxel.Viewer.Scene
+import Data.Voxel.Viewer.Shader.Phong
 import Graphics.GPipe
+import Reflex 
 
 import qualified Data.Vector as GV
 import qualified Graphics.GPipe.Context.GLFW as GLFW
-
-import Data.Voxel.Viewer.App
-import Reflex 
-import Control.Monad.IO.Class
 
 runViewer :: IO () 
 runViewer = 
@@ -43,7 +42,7 @@ runViewer =
 
     runApp win $ viewerApp win camera shader scene matBuffer
 
-viewerApp :: forall t m os . MonadViewer t os m 
+viewerApp :: forall t m os . MonadApp t os m 
   => Window os RGBAFloat Depth
   -> Camera Float
   -> CompiledShader os ShaderEnvironment

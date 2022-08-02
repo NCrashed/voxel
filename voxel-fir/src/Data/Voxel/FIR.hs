@@ -8,4 +8,4 @@ import Math.Quaternion
 import FIR.Syntax.Labels 
 
 runViewer :: IO ()
-runViewer = pure ()
+runViewer = Prelude.pure ()

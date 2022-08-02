@@ -15,8 +15,9 @@ import Control.Arrow
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Int
+import Data.Kind (Type)
 import Data.Proxy
-import Data.Vector.Storable (Vector, Storable)
+import Data.Vector.Storable (Vector)
 import Data.Voxel.Mesh (Mesh)
 import Data.Word
 import GHC.Generics
@@ -68,9 +69,9 @@ instance VertexInput a => VertexInput (MeshArray a) where
 -- | Operations for extending buffers of mesh
 class MeshBufferExt a where
   -- | Maps from mesh data element to buffer type
-  type BufferOf os a :: *
+  type BufferOf os a :: Type
   -- | Maps from mesh data element to primitive array element
-  type ArrayOf a :: *
+  type ArrayOf a :: Type
 
   -- | Allocate additional buffers for `MeshBuffers`
   newMeshDataBuffer :: (MonadIO m, ContextHandler ctx)

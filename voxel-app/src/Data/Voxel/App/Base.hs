@@ -1,5 +1,5 @@
 {-# LANGUAGE RecursiveDo #-}
-module Data.Voxel.Viewer.App.Base(
+module Data.Voxel.App.Base(
     GPipeEnv(..)
   , newGPipeEnv
   , bindEnvCallbacks
@@ -13,7 +13,7 @@ import Control.Monad.Reader
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..), Ref, readRef)
 import Data.Coerce
 import Data.IORef
-import Data.Voxel.Viewer.App.Class 
+import Data.Voxel.App.Class 
 import GHC.Generics 
 import Graphics.GPipe
 import Reflex 

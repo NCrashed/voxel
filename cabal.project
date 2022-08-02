@@ -2,6 +2,7 @@ packages:
   GPipe-GLFW
   MagicaVoxel-vox
   voxel
+  voxel-app
   voxel-fir
   voxel-GPipe
   voxel-MagicaVoxel

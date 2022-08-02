@@ -1,4 +1,4 @@
-module Data.Voxel.Viewer.App.Class(
+module Data.Voxel.App.Class(
     Renderer
   , KeyEvent(..)
   , MonadGPipe(..)

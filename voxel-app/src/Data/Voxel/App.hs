@@ -1,8 +1,8 @@
 -- I shamelessly took some parts from reflex-vty by Obsidian Systems LLC 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Data.Voxel.Viewer.App(
-    MonadViewer
-  , ViewerApp
+module Data.Voxel.App(
+    MonadApp
+  , App
   , runApp
   ) where 
 
@@ -19,9 +19,9 @@ import Control.Monad.Trans.Class (lift)
 import Data.Dependent.Sum (DSum ((:=>)))
 import Data.IORef (IORef, readIORef)
 import Data.Maybe (catMaybes, fromMaybe)
-import Data.Voxel.Viewer.App.Class
-import Data.Voxel.Viewer.App.Base
-import Data.Voxel.Viewer.TriggerEvent
+import Data.Voxel.App.Class
+import Data.Voxel.App.Base
+import Data.Voxel.TriggerEvent
 import Graphics.GPipe
 import Reflex
 import Reflex.Host.Class
@@ -30,7 +30,7 @@ import qualified Graphics.GPipe.Context.GLFW as GLFW
 
 -- | Basic monad for FRP application. See 'runViewer' implementation
 -- to see how these constaints are fullfilled.
-type MonadViewer t os m = (
+type MonadApp t os m = (
     Adjustable t m
   , MonadException m
   , MonadFix m
@@ -54,14 +54,14 @@ type MonadViewer t os m = (
   )
 
 -- | Part of application that can use FRP API
-type ViewerApp t os m = MonadViewer t os m => m ()
+type App t os m = MonadApp t os m => m ()
 
 -- | Runs infinite loop of rendering and event handling of the App.
 runApp :: 
   -- | Main window for the application
      Window os RGBAFloat Depth
   -- | Application that provided by user of the function
-  -> (forall t m . ViewerApp t os m) 
+  -> (forall t m . App t os m) 
   -> ContextT GLFW.Handle os (SpiderHost Global) ()
 runApp win app = do
     -- Create the "post-build" event and associated trigger. This event fires

@@ -5,7 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
-module Data.Voxel.Viewer.TriggerEvent
+module Data.Voxel.TriggerEvent
   ( TriggerEventConcT (..)
   , runTriggerEventConcT
   , askEventsConc
