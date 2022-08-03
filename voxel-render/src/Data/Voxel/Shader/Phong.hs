@@ -1,8 +1,9 @@
 module Data.Voxel.Shader.Phong(
     ShaderEnvironment(..)
   , MatrixUniform
-  , pipelineShader
+  , phongShader
   , RenderContext(..)
+  , newRenderContext
   , renderModel
   ) where 
 
@@ -25,8 +26,8 @@ data ShaderEnvironment = ShaderEnvironment
 type MatrixUniform os = Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float)))
 
 -- | Simple phong shading with directed light
-pipelineShader ::  Window os RGBAFloat Depth -> MatrixUniform os -> Shader os ShaderEnvironment ()
-pipelineShader win uniform = do
+phongShader ::  Window os RGBAFloat Depth -> MatrixUniform os -> Shader os ShaderEnvironment ()
+phongShader win uniform = do
   sides <- toPrimitiveStream primitives
   (modelViewProj, normMat) <- getUniform (const (uniform, 0))
   let projectedSides = proj modelViewProj normMat <$> sides
@@ -68,10 +69,24 @@ data RenderContext os = RenderContext {
 , renderShader :: !(ShaderEnvironment -> Render os ())
 }
 
+-- | Create new renderer context for given window
+newRenderContext :: Window os RGBAFloat Depth 
+  -> Camera Float -- ^ Initial view
+  -> ContextT GLFW.Handle os (SpiderHost Global) (RenderContext os)
+newRenderContext win camera = do 
+    matBuffer <- newBuffer 1
+    shader <- compileShader $ phongShader win matBuffer 
+    pure RenderContext {
+        renderWindow = win 
+      , renderShader = shader 
+      , renderMatrix = matBuffer 
+      , renderCamera = camera
+      }
+
 -- | Render a single model in the screen
 renderModel :: RenderContext os
   -> SceneModel os -- ^ Loaded scene model into memory 
-  -> Transform -- ^ Model transformation 
+  -> Transform Float -- ^ Model transformation 
   -> ContextT GLFW.Handle os (SpiderHost Global) ()
 renderModel RenderContext{..} model transform = do
   -- Write this frames uniform value

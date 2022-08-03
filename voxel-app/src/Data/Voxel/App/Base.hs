@@ -14,10 +14,13 @@ import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..), Ref, readRef)
 import Data.Coerce
 import Data.IORef
 import Data.Voxel.App.Class 
+import Data.Voxel.Demand
+import Data.Word
 import GHC.Generics 
 import Graphics.GPipe
 import Reflex 
 import Reflex.Host.Class
+import Reflex.Spider (SpiderTimeline)
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 
@@ -29,10 +32,8 @@ data GPipeEnv t os = GPipeEnv {
   , _GPipeEnv_shutdownFire :: IO ()
   -- | Render function that is called each frame
   , _GPipeEnv_render       :: IORef (Behavior t (Renderer os))
-  -- | An event that fires when a frame is rendered
-  , _GPipeEnv_frame        :: Event t ()
-  -- | Action that should be called after frame rendered
-  , _GPipeEnv_frameFire    :: IO ()
+  -- | Frame counter that updated after each draw
+  , _GPipeEnv_frame        :: IORef Word64
   -- | Event that fired when key callback is called
   , _GPipeEnv_key          :: Event t KeyEvent
   -- | Fire command for callback for key press
@@ -42,15 +43,14 @@ data GPipeEnv t os = GPipeEnv {
 newGPipeEnv :: (Reflex t, MonadIO m, TriggerEvent t m) => m (GPipeEnv t os)
 newGPipeEnv = do
   (shutEv, shutdownFire) <- newTriggerEvent 
-  (frameEv, frameFire) <- newTriggerEvent 
   (keyEv, keyFire) <- newTriggerEvent 
   rendererRef <- liftIO $ newIORef $ pure $ pure () 
+  frameRef <- liftIO $ newIORef 0 
   pure GPipeEnv {
       _GPipeEnv_shutdown = shutEv
     , _GPipeEnv_shutdownFire = shutdownFire () 
     , _GPipeEnv_render = rendererRef
-    , _GPipeEnv_frame = frameEv
-    , _GPipeEnv_frameFire = frameFire ()
+    , _GPipeEnv_frame = frameRef
     , _GPipeEnv_key = keyEv
     , _GPipeEnv_keyFire = keyFire
     }
@@ -58,7 +58,8 @@ newGPipeEnv = do
 -- | That should be called after 'newGPipeEnv' when FRP network is set.
 bindEnvCallbacks :: MonadIO m => Window os c ds -> GPipeEnv t os -> ContextT GLFW.Handle os m ()
 bindEnvCallbacks win GPipeEnv{..} = do 
-  void $ GLFW.setKeyCallback win $ Just $ \key scan state mods -> _GPipeEnv_keyFire $! KeyEvent key scan state mods 
+  void $ GLFW.setKeyCallback win $ Just $ \key scan state mods -> 
+    _GPipeEnv_keyFire $! KeyEvent key scan state mods 
 
 -- | Basic implementation of 'MonadGPipe'
 newtype GPipeT t os m a = GPipeT { unGPipeT :: ReaderT (GPipeEnv t os) m a }
@@ -68,7 +69,7 @@ newtype GPipeT t os m a = GPipeT { unGPipeT :: ReaderT (GPipeEnv t os) m a }
 runGPipeT :: Monad m => GPipeT t os m a -> GPipeEnv t os -> m a 
 runGPipeT (GPipeT m) env = runReaderT m env  
 
-instance (PerformEvent t m, MonadIO (Performable m), MonadIO m) => MonadGPipe t os (GPipeT t os m) where 
+instance (PerformEvent t m, MonadIO (Performable m), MonadIO m, MonadIO (PullM t), t ~ SpiderTimeline x) => MonadGPipe t os (GPipeT t os m) where 
   {-# INLINABLE setShutdownEvent #-}
   setShutdownEvent e = do 
     env <- GPipeT ask
@@ -82,8 +83,10 @@ instance (PerformEvent t m, MonadIO (Performable m), MonadIO m) => MonadGPipe t 
     env <- GPipeT ask
     liftIO $ writeIORef (_GPipeEnv_render env) r
 
-  {-# INLINE frameRendered #-}
-  frameRendered = GPipeT $ asks _GPipeEnv_frame
+  {-# INLINE frameCounter #-}
+  frameCounter = do 
+    ref <- GPipeT $ asks _GPipeEnv_frame
+    pure $ onDemand $ readIORef ref
 
   {-# INLINE keyInput #-}
   keyInput = GPipeT $ asks _GPipeEnv_key 

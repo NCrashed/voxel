@@ -11,6 +11,7 @@ import Data.Voxel.Camera
 import Data.Voxel.Scene
 import Data.Voxel.Shader.Phong
 import Data.Voxel.Transform
+import Data.Voxel.Window
 import Graphics.GPipe
 import Reflex 
 
@@ -19,17 +20,10 @@ import qualified Data.Vector as GV
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 
 runViewer :: IO () 
-runViewer = 
-  -- We are using the 'Spider' implementation of reflex. Running the host
-  -- allows us to take actions on the FRP timeline. The scoped type signature
-  -- specifies that our host runs on the Global timeline.
-  -- For more information, see 'Reflex.Spider.Internal.runSpiderHost'.
-  (runSpiderHost :: SpiderHost Global a -> IO a) $ runContextT GLFW.defaultHandleConfig $ do 
+runViewer = runAppHost $ do 
     let initWidth = 800
     let initHeight = 600
-    win <- createWindow initWidth initHeight
-    matBuffer <- newBuffer 1
-    shader <- compileShader $ pipelineShader win matBuffer
+    win <- createWindow "voxel viewer" initWidth initHeight
     voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/harvester_full.vox" 
     scene <- prepareVox voxModel
 
@@ -43,18 +37,18 @@ runViewer =
         , cameraFar = 100
         }
 
-    runApp win $ viewerApp win camera shader scene matBuffer
+    ctx <- newRenderContext win camera
+    runApp win $ viewerApp ctx scene
 
 viewerApp :: forall t m os . MonadApp t os m 
-  => Window os RGBAFloat Depth
-  -> Camera Float
-  -> CompiledShader os ShaderEnvironment
+  => RenderContext os
   -> Vector (SceneModel os)
-  -> MatrixUniform os
   -> m ()
-viewerApp win camera shader scene matBuffer = do 
-  frameE <- frameRendered
-  angBeh <- fmap current $ foldDyn (\_ ang -> (ang + 0.005) `mod''` (2*pi)) 0.0 frameE
+viewerApp ctx scene = do 
+  frameB <- frameCounter
+  let angBeh = do 
+        frame <- frameB
+        pure $ (0.005 * fromIntegral frame) `mod''` (2*pi)
   
   let capLod = min (GV.length scene - 1)
   let lodKeys = [GLFW.Key'0, GLFW.Key'1, GLFW.Key'2, GLFW.Key'3, GLFW.Key'4, GLFW.Key'5, GLFW.Key'6]
@@ -65,21 +59,6 @@ viewerApp win camera shader scene matBuffer = do
   setRenderer $ pure $ do
     ang <- sample angBeh
     lod <- sample lodBeh
-    let ctx = RenderContext {
-          renderWindow = win 
-        , renderShader = shader 
-        , renderMatrix = matBuffer
-        , renderCamera = camera
-        }
     let modelTrans = rotateTransform (axisAngle (V3 0 0 1) ang) mempty
     renderModel ctx (scene GV.! lod) modelTrans
-
-createWindow :: MonadIO m => Int -> Int -> ContextT GLFW.Handle os m (Window os RGBAFloat Depth) 
-createWindow initWidth initHeight = do 
-  let wcfg = (GLFW.defaultWindowConfig "voxel viewer") {
-          GLFW.configWidth = initWidth
-        , GLFW.configHeight = initHeight
-        }
-  newWindow (WindowFormatColorDepth RGBA8 Depth16) wcfg
-
 

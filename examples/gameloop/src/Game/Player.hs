@@ -6,6 +6,7 @@ import Linear
 
 import qualified Data.Voxel.Grid.Unbox as G
 
+-- | Procedural player model as voxel grid
 playerModel :: G.VoxelGrid (V3 Float)
 playerModel = G.generate (V3 3 2 1) $ \(V3 x y _) -> if 
   | x == 0 && y == 0 -> V3 1.0 0.0 0.0

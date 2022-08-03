@@ -28,7 +28,9 @@ library
     Data.Voxel.App
     Data.Voxel.App.Base
     Data.Voxel.App.Class
+    Data.Voxel.Demand
     Data.Voxel.TriggerEvent
+    Data.Voxel.Window
   build-depends:
       base            >= 4.5      && < 5
     , dependent-sum

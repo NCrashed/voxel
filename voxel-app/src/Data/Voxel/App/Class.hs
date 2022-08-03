@@ -4,10 +4,12 @@ module Data.Voxel.App.Class(
   , MonadGPipe(..)
   -- * Input helpers
   , keyPressed
+  , keyDown
   -- * Reexports 
   , Key(..), KeyState(..), ModifierKeys(..)
   ) where 
 
+import Data.Word 
 import GHC.Generics (Generic)
 import Graphics.GPipe
 import Graphics.GPipe.Context.GLFW (Key(..), KeyState(..), ModifierKeys(..))
@@ -35,8 +37,8 @@ class (Reflex t, Monad m) => MonadGPipe t os m | m -> t, m -> os where
   shutdownEvent :: m (Event t ())
   -- | Set current renderer
   setRenderer :: Behavior t (Renderer os) -> m ()
-  -- | Get event when a single frame is rendered
-  frameRendered :: m (Event t ())
+  -- | Get counter with frames rendered
+  frameCounter :: m (Behavior t Word64)
   -- | Get event for key pressed
   keyInput :: m (Event t KeyEvent)
 
@@ -47,3 +49,11 @@ keyPressed k = do
   let expected KeyEvent{..} = _keyEvent_key == k
   pure $ ffilter expected e
 
+-- | Get dynamic that indicates whether the key is pressed right now
+keyDown :: (MonadHold t m, MonadGPipe t os m) => Key -> m (Dynamic t Bool)
+keyDown k = do 
+  e <- keyInput 
+  let expected KeyEvent{..} = _keyEvent_key == k
+  let downE = ffor (ffilter expected e) $ \KeyEvent{..} ->
+        _keyEvent_state == KeyState'Pressed || _keyEvent_state == KeyState'Repeating
+  holdDyn False downE 

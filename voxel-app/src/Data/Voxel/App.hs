@@ -3,6 +3,7 @@
 module Data.Voxel.App(
     MonadApp
   , App
+  , runAppHost
   , runApp
   ) where 
 
@@ -17,7 +18,7 @@ import Control.Monad.Ref (MonadRef(..), Ref, readRef)
 import Control.Monad.STM (atomically)
 import Control.Monad.Trans.Class (lift)
 import Data.Dependent.Sum (DSum ((:=>)))
-import Data.IORef (IORef, readIORef)
+import Data.IORef (IORef, readIORef, modifyIORef')
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Voxel.App.Class
 import Data.Voxel.App.Base
@@ -50,11 +51,21 @@ type MonadApp t os m = (
   , ReflexHost t
   , TriggerEvent t m
   , MonadGPipe t os m
+  , MonadIO (PullM t)
   , t ~ SpiderTimeline Global
   )
 
 -- | Part of application that can use FRP API
 type App t os m = MonadApp t os m => m ()
+
+-- | Helper to run FRP host frame to run appplication inside it
+runAppHost :: (forall os . ContextT GLFW.Handle os (SpiderHost Global) a) -> IO a
+runAppHost m =  
+  -- We are using the 'Spider' implementation of reflex. Running the host
+  -- allows us to take actions on the FRP timeline. The scoped type signature
+  -- specifies that our host runs on the Global timeline.
+  -- For more information, see 'Reflex.Spider.Internal.runSpiderHost'.
+  (runSpiderHost :: SpiderHost Global a -> IO a) $ runContextT GLFW.defaultHandleConfig m 
 
 -- | Runs infinite loop of rendering and event handling of the App.
 runApp :: 
@@ -131,7 +142,7 @@ runApp win app = do
           renderBehavior <- liftIO $ readIORef $ _GPipeEnv_render env
           renderFn <- sample renderBehavior
           renderFn
-          liftIO $ _GPipeEnv_frameFire env
+          liftIO $ modifyIORef' (_GPipeEnv_frame env) (+1)
           loop
 
   where
