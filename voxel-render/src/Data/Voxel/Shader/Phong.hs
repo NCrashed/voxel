@@ -1,23 +1,21 @@
 module Data.Voxel.Shader.Phong(
-    ShaderEnvironment(..)
+    PhongEnv(..)
   , MatrixUniform
   , phongShader
-  , RenderContext(..)
-  , newRenderContext
+  , PhongContext(..)
+  , newPhongContext
   , renderModel
   ) where 
 
 import Control.Lens ((^.))
+import Data.Voxel.App
 import Data.Voxel.Camera
 import Data.Voxel.GPipe.Mesh
 import Data.Voxel.Scene
 import Data.Voxel.Transform 
 import Graphics.GPipe
-import Reflex 
 
-import qualified Graphics.GPipe.Context.GLFW as GLFW
-
-data ShaderEnvironment = ShaderEnvironment
+data PhongEnv = PhongEnv
   { primitives :: PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float)))
   , rasterOptions :: (Side, ViewPort, DepthRange)
   }
@@ -26,7 +24,7 @@ data ShaderEnvironment = ShaderEnvironment
 type MatrixUniform os = Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float)))
 
 -- | Simple phong shading with directed light
-phongShader ::  Window os RGBAFloat Depth -> MatrixUniform os -> Shader os ShaderEnvironment ()
+phongShader ::  Window os RGBAFloat Depth -> MatrixUniform os -> Shader os PhongEnv ()
 phongShader win uniform = do
   sides <- toPrimitiveStream primitives
   (modelViewProj, normMat) <- getUniform (const (uniform, 0))
@@ -57,8 +55,8 @@ light normal col = V4 r g b 1 * pure (normal `dot` V3 (-0.577) (-0.577) 0.577)
     gamma = 2.2
     V3 r g b = col ** gamma
 
--- | Required arguments to render a frame
-data RenderContext os = RenderContext {
+-- | Environment that is required to draw a single frame
+data PhongContext os = PhongContext {
   -- | Target window to render to 
   renderWindow :: !(Window os RGBAFloat Depth)
   -- | Buffer with MVP matrix
@@ -66,29 +64,29 @@ data RenderContext os = RenderContext {
   -- | View projection
 , renderCamera :: !(Camera Float)
   -- | Compiled shader to render with 
-, renderShader :: !(ShaderEnvironment -> Render os ())
+, renderShader :: !(CompiledShader os PhongEnv)
 }
 
 -- | Create new renderer context for given window
-newRenderContext :: Window os RGBAFloat Depth 
-  -> Camera Float -- ^ Initial view
-  -> ContextT GLFW.Handle os (SpiderHost Global) (RenderContext os)
-newRenderContext win camera = do 
-    matBuffer <- newBuffer 1
-    shader <- compileShader $ phongShader win matBuffer 
-    pure RenderContext {
-        renderWindow = win 
-      , renderShader = shader 
-      , renderMatrix = matBuffer 
-      , renderCamera = camera
-      }
+newPhongContext :: Window os RGBAFloat Depth 
+  -> Camera Float -- ^ Initial view 
+  -> SpiderCtx os (PhongContext os)
+newPhongContext win camera = do 
+  matBuffer <- newBuffer 1
+  shader <- compileShader $ phongShader win matBuffer 
+  pure PhongContext {
+      renderWindow = win 
+    , renderShader = shader 
+    , renderMatrix = matBuffer 
+    , renderCamera = camera
+    }
 
 -- | Render a single model in the screen
-renderModel :: RenderContext os
+renderModel :: PhongContext os
   -> SceneModel os -- ^ Loaded scene model into memory 
   -> Transform Float -- ^ Model transformation 
-  -> ContextT GLFW.Handle os (SpiderHost Global) ()
-renderModel RenderContext{..} model transform = do
+  -> SpiderCtx os ()
+renderModel PhongContext{..} model transform = do
   -- Write this frames uniform value
   size@(V2 w h) <- getFrameBufferSize renderWindow
   let newCam = renderCamera { cameraAspect = (fromIntegral w / fromIntegral h) }
@@ -102,6 +100,6 @@ renderModel RenderContext{..} model transform = do
     clearWindowColor renderWindow 0 -- Black
     clearWindowDepth renderWindow 1 -- Far plane
     prims <- model
-    renderShader $ ShaderEnvironment prims (FrontAndBack, ViewPort 0 size, DepthRange 0 1)
+    renderShader $ PhongEnv prims (FrontAndBack, ViewPort 0 size, DepthRange 0 1)
   swapWindowBuffers renderWindow
 

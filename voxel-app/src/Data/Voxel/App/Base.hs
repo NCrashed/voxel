@@ -20,7 +20,6 @@ import GHC.Generics
 import Graphics.GPipe
 import Reflex 
 import Reflex.Host.Class
-import Reflex.Spider (SpiderTimeline)
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 

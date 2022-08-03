@@ -1,5 +1,6 @@
 module Data.Voxel.App.Class(
-    Renderer
+    SpiderCtx
+  , Renderer
   , KeyEvent(..)
   , MonadGPipe(..)
   -- * Input helpers
@@ -17,8 +18,12 @@ import Reflex
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 
+-- | Shortcut for basic monad we work with. We have access to 
+-- FRP timeline, OpenGL and GLFW context.
+type SpiderCtx os = ContextT GLFW.Handle os (SpiderHost Global)
+
 -- | Renderer function that is called every frame
-type Renderer os = ContextT GLFW.Handle os (SpiderHost Global) () 
+type Renderer os = SpiderCtx os () 
 
 -- | Fires for each press or repeat of keyboard keys (regardless of if it has textual meaning or not, eg Shift)
 data KeyEvent = KeyEvent {

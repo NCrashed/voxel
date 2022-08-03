@@ -1,8 +1,8 @@
-name:                voxel-render
+name:                voxel-ui
 version:             0.0.1.0
-synopsis:            Shader utiltities for voxel library.
+synopsis:            Showcase of simple UI
 description:
-  Shaders and scene for [voxel](http://hackage.haskell.org/package/voxel) library.
+  Demo with simple UI support from [voxel](http://hackage.haskell.org/package/voxel) library.
 license:             MIT
 license-file:        LICENSE
 copyright:           2022 Anton Gushcha
@@ -25,13 +25,7 @@ source-repository head
 library
   hs-source-dirs:      src
   exposed-modules:
-    Data.Voxel.Camera
-    Data.Voxel.Scene
-    Data.Voxel.Shader
-    Data.Voxel.Shader.Flat 
-    Data.Voxel.Shader.Phong
-    Data.Voxel.Texture
-    Data.Voxel.Transform
+    Game.Loop
   build-depends:
       base            >= 4.5      && < 5
     , dependent-sum
@@ -39,11 +33,12 @@ library
     , GLFW-b
     , GPipe           >= 2.2.4    && < 2.3
     , GPipe-GLFW      >= 1.4.1.1  && < 1.5
-    , JuicyPixels     >= 3.0      && < 4.0
     , lens            >= 4.10     && < 6
     , linear          >= 1.20     && < 2
     , MagicaVoxel-vox
     , mtl
+    , primitive
+    , ref-tf
     , reflex          >= 0.6      && < 0.9
     , stm
     , transformers
@@ -51,6 +46,7 @@ library
     , voxel           >= 0.0      && < 0.1
     , voxel-app       >= 0.0      && < 0.1
     , voxel-GPipe     >= 0.0      && < 0.1
+    , voxel-render    >= 0.0      && < 0.1
     , voxel-MagicaVoxel
   default-language:    Haskell2010
   default-extensions:
@@ -64,6 +60,7 @@ library
     GeneralizedNewtypeDeriving
     LambdaCase
     MultiParamTypeClasses
+    MultiWayIf
     OverloadedStrings
     RankNTypes
     RecordWildCards
@@ -71,3 +68,12 @@ library
     TupleSections
     TypeFamilies
     UndecidableInstances
+
+executable voxel-ui
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-A64m -with-rtsopts=-AL256m -with-rtsopts=-qn4
+  build-depends:
+      base
+    , voxel-ui
+  default-language:    Haskell2010

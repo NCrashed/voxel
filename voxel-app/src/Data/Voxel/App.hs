@@ -3,7 +3,8 @@
 module Data.Voxel.App(
     MonadApp
   , App
-  , runAppHost
+  , SpiderCtx 
+  , runAppHost 
   , runApp
   ) where 
 
@@ -59,7 +60,7 @@ type MonadApp t os m = (
 type App t os m = MonadApp t os m => m ()
 
 -- | Helper to run FRP host frame to run appplication inside it
-runAppHost :: (forall os . ContextT GLFW.Handle os (SpiderHost Global) a) -> IO a
+runAppHost :: (forall os . SpiderCtx os a) -> IO a
 runAppHost m =  
   -- We are using the 'Spider' implementation of reflex. Running the host
   -- allows us to take actions on the FRP timeline. The scoped type signature
@@ -73,7 +74,7 @@ runApp ::
      Window os RGBAFloat Depth
   -- | Application that provided by user of the function
   -> (forall t m . App t os m) 
-  -> ContextT GLFW.Handle os (SpiderHost Global) ()
+  -> SpiderCtx os ()
 runApp win app = do
     -- Create the "post-build" event and associated trigger. This event fires
     -- once, when the application starts.

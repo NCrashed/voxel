@@ -37,11 +37,11 @@ runViewer = runAppHost $ do
         , cameraFar = 100
         }
 
-    ctx <- newRenderContext win camera
+    ctx <- newPhongContext win camera
     runApp win $ viewerApp ctx scene
 
 viewerApp :: forall t m os . MonadApp t os m 
-  => RenderContext os
+  => PhongContext os
   -> Vector (SceneModel os)
   -> m ()
 viewerApp ctx scene = do 

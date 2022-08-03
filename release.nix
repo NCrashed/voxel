@@ -27,6 +27,7 @@ let
     voxel-app = new.callCabal2nix "voxel-app" (ignore ./voxel-app) {};
     voxel-fir = new.callCabal2nix "voxel-fir" (ignore ./voxel-fir) {};
     voxel-gameloop = new.callCabal2nix "voxel-gameloop" (ignore ./examples/gameloop) {};
+    voxel-ui = new.callCabal2nix "voxel-ui" (ignore ./examples/ui) {};
     voxel-GPipe = new.callCabal2nix "voxel-GPipe" (ignore ./voxel-GPipe) {};
     voxel-MagicaVoxel = new.callCabal2nix "voxel-MagicaVoxel" (ignore ./voxel-MagicaVoxel) {};
     voxel-render = new.callCabal2nix "voxel-render" (ignore ./voxel-render) {};
@@ -34,5 +35,5 @@ let
   };
 in {
   inherit pkgs;
-  packages = { inherit (pkgs.haskellPackages) voxel voxel-app voxel-fir voxel-GPipe voxel-MagicaVoxel voxel-render voxel-viewer MagicaVoxel-vox voxel-gameloop; };
+  packages = { inherit (pkgs.haskellPackages) voxel voxel-app voxel-fir voxel-GPipe voxel-MagicaVoxel voxel-render voxel-viewer MagicaVoxel-vox voxel-gameloop voxel-ui; };
 }

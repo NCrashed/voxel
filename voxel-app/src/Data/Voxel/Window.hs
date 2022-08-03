@@ -4,7 +4,6 @@ module Data.Voxel.Window(
 
 import Control.Monad.IO.Class
 import Graphics.GPipe
-import Reflex 
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 
