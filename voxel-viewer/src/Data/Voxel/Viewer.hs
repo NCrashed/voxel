@@ -10,9 +10,11 @@ import Data.Voxel.App.Class
 import Data.Voxel.Camera
 import Data.Voxel.Scene
 import Data.Voxel.Shader.Phong
+import Data.Voxel.Transform
 import Graphics.GPipe
 import Reflex 
 
+import qualified Data.MagicaVoxel as MV 
 import qualified Data.Vector as GV
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 
@@ -27,8 +29,9 @@ runViewer =
     let initHeight = 600
     win <- createWindow initWidth initHeight
     matBuffer <- newBuffer 1
-    shader <- compileShader $ pipelineShader win matBuffer 
-    scene <- prepareScene
+    shader <- compileShader $ pipelineShader win matBuffer
+    voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/harvester_full.vox" 
+    scene <- prepareVox voxModel
 
     let camera :: Camera Float
         camera = Camera {
@@ -62,7 +65,14 @@ viewerApp win camera shader scene matBuffer = do
   setRenderer $ pure $ do
     ang <- sample angBeh
     lod <- sample lodBeh
-    renderScene win shader scene matBuffer camera ang lod
+    let ctx = RenderContext {
+          renderWindow = win 
+        , renderShader = shader 
+        , renderMatrix = matBuffer
+        , renderCamera = camera
+        }
+    let modelTrans = rotateTransform (axisAngle (V3 0 0 1) ang) mempty
+    renderModel ctx (scene GV.! lod) modelTrans
 
 createWindow :: MonadIO m => Int -> Int -> ContextT GLFW.Handle os m (Window os RGBAFloat Depth) 
 createWindow initWidth initHeight = do 

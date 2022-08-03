@@ -2,19 +2,19 @@ module Data.Voxel.Shader.Phong(
     ShaderEnvironment(..)
   , MatrixUniform
   , pipelineShader
-  , renderScene
+  , RenderContext(..)
+  , renderModel
   ) where 
 
 import Control.Lens ((^.))
-import Data.Voxel.GPipe.Mesh
-import Graphics.GPipe
-import Data.Vector (Vector)
 import Data.Voxel.Camera
+import Data.Voxel.GPipe.Mesh
 import Data.Voxel.Scene
+import Data.Voxel.Transform 
+import Graphics.GPipe
 import Reflex 
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
-import qualified Data.Vector as GV
 
 data ShaderEnvironment = ShaderEnvironment
   { primitives :: PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float)))
@@ -56,29 +56,37 @@ light normal col = V4 r g b 1 * pure (normal `dot` V3 (-0.577) (-0.577) 0.577)
     gamma = 2.2
     V3 r g b = col ** gamma
 
-renderScene :: Window os RGBAFloat Depth
-  -> (ShaderEnvironment -> Render os ())
-  -> Vector (SceneModel os)
-  -> MatrixUniform os
-  -> Camera Float
-  -> Float
-  -> Int 
+-- | Required arguments to render a frame
+data RenderContext os = RenderContext {
+  -- | Target window to render to 
+  renderWindow :: !(Window os RGBAFloat Depth)
+  -- | Buffer with MVP matrix
+, renderMatrix :: !(MatrixUniform os)
+  -- | View projection
+, renderCamera :: !(Camera Float)
+  -- | Compiled shader to render with 
+, renderShader :: !(ShaderEnvironment -> Render os ())
+}
+
+-- | Render a single model in the screen
+renderModel :: RenderContext os
+  -> SceneModel os -- ^ Loaded scene model into memory 
+  -> Transform -- ^ Model transformation 
   -> ContextT GLFW.Handle os (SpiderHost Global) ()
-renderScene win shader makePrimitives uniform camera ang lod = do
+renderModel RenderContext{..} model transform = do
   -- Write this frames uniform value
-  size@(V2 w h) <- getFrameBufferSize win
-  let newCam = camera { cameraAspect = (fromIntegral w / fromIntegral h) }
-  let modelRot = fromQuaternion (axisAngle (V3 0 0 1) ang)
-      modelMat = mkTransformationMat modelRot (pure 0) !*! mkTransformationMat identity (-V3 0.5 0.5 0)
+  size@(V2 w h) <- getFrameBufferSize renderWindow
+  let newCam = renderCamera { cameraAspect = (fromIntegral w / fromIntegral h) }
+      modelMat = transformMatrix transform
       viewProjMat = cameraProjMat newCam !*! cameraViewMat newCam !*! modelMat
-      normMat = modelRot
-  writeBuffer uniform 0 [(viewProjMat, normMat)]
+      normMat = fromQuaternion (transformRotation transform)
+  writeBuffer renderMatrix 0 [(viewProjMat, normMat)]
 
   -- Render the frame and present the results
   render $ do
-    clearWindowColor win 0 -- Black
-    clearWindowDepth win 1 -- Far plane
-    prims <- makePrimitives GV.! lod
-    shader $ ShaderEnvironment prims (FrontAndBack, ViewPort 0 size, DepthRange 0 1)
-  swapWindowBuffers win
+    clearWindowColor renderWindow 0 -- Black
+    clearWindowDepth renderWindow 1 -- Far plane
+    prims <- model
+    renderShader $ ShaderEnvironment prims (FrontAndBack, ViewPort 0 size, DepthRange 0 1)
+  swapWindowBuffers renderWindow
 

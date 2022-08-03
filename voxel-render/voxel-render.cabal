@@ -25,11 +25,12 @@ source-repository head
 library
   hs-source-dirs:      src
   exposed-modules:
+    Data.Voxel.Camera
+    Data.Voxel.Scene
     Data.Voxel.Shader
     Data.Voxel.Shader.Flat 
     Data.Voxel.Shader.Phong
-    Data.Voxel.Scene
-    Data.Voxel.Camera
+    Data.Voxel.Transform
   build-depends:
       base            >= 4.5      && < 5
     , dependent-sum

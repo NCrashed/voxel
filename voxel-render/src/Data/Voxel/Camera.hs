@@ -2,6 +2,7 @@ module Data.Voxel.Camera(
     Camera(..)
   , cameraViewMat
   , cameraProjMat
+  , rotateCamera
   ) where 
 
 import Linear 
@@ -25,3 +26,9 @@ cameraViewMat Camera{..} = mkTransformation cameraRotation cameraPosition
 -- | Get matrix that transforms view coordinates to window volume
 cameraProjMat :: Floating a => Camera a -> M44 a 
 cameraProjMat Camera{..} = perspective cameraAngle cameraAspect cameraNear cameraFar
+
+-- | Transform camera with given rotation 
+rotateCamera :: RealFloat a => Quaternion a -> Camera a -> Camera a 
+rotateCamera q cam = cam {
+  cameraRotation = q * cameraRotation cam
+}

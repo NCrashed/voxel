@@ -1,6 +1,7 @@
 module Data.Voxel.Scene(
     SceneModel
-  , prepareScene
+  , prepareVox
+  , prepareGrid
   ) where
 
 import Control.Monad.IO.Class
@@ -20,19 +21,21 @@ import qualified Data.Vector as GV
 -- | Loaded model to GPU to render 
 type SceneModel os = Render
        os (PrimitiveArray Triangles (MeshArray (ArrayOf (V3 Float))))
-    
-prepareScene :: (MonadIO m, ContextHandler win) => ContextT win os m (Vector (SceneModel os))
-prepareScene = do 
-  voxModel <- either (fail . ("Vox loading: " ++)) pure =<< MV.parseFile "../MagicaVoxel-vox/test/harvester_full.vox"
+
+prepareVox :: (MonadIO m, ContextHandler win) => MV.VoxFile -> ContextT win os m (Vector (SceneModel os))
+prepareVox voxModel = do 
   rawModel <- either (fail . ("Vox convert: " ++)) pure $ convertMagica voxModel
   -- Create vertex data buffers
   let model :: G.VoxelGrid (V3 Float)
-      -- model = generateMap 
       model = G.map word32Color rawModel
+  prepareGrid model 
+
+prepareGrid :: (MonadIO m, ContextHandler win) => G.VoxelGrid (V3 Float) -> ContextT win os m (Vector (SceneModel os))
+prepareGrid model = do 
   let renderModel :: L.LodMesh (V3 Float)
       renderModel = L.new TriangulateTriangles model
   buffers <- traverse meshBuffers $ L.allLods renderModel
-  -- Make a Render action that returns a PrimitiveArray for the cube
+  -- Make a Render action that returns a PrimitiveArray for the model
   let makeSingle = meshBufferArray (Proxy :: Proxy (V3 Float)) TriangleList
   let makePrimitives = GV.fromList $ makeSingle <$> buffers
   pure makePrimitives
