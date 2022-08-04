@@ -188,7 +188,11 @@ proj modelViewProj RectVertex{..} = let
 
 -- Set color from sampler
 sampleTex :: Sampler2D (Format RGBAFloat) -> V2 FFloat -> V4 FFloat
-sampleTex sampler uv = sample2D sampler SampleAuto Nothing Nothing uv
+sampleTex sampler uv = V4 r g b a
+  where 
+    gamma = 2.2
+    col@(V4 _ _ _ a) = sample2D sampler SampleAuto Nothing Nothing uv
+    V4 r g b _ = col ** gamma
 
 -- | Environment that is required to draw a single frame
 data FlatContext os = FlatContext {
