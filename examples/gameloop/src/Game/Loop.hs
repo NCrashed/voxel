@@ -32,7 +32,7 @@ runGame = runAppHost $ do
   let camera :: Camera Float
       camera = Camera {
         cameraPosition = - V3 0 0 25
-      , cameraRotation = axisAngle (V3 50 10 1) 10
+      , cameraRotation = axisAngle (V3 0 0 0) 0
       , cameraAngle = (pi/12)
       , cameraAspect = (fromIntegral initWidth / fromIntegral initHeight)
       , cameraNear = 1
@@ -54,15 +54,21 @@ viewerApp :: forall t m os . MonadApp t os m
 viewerApp ctx player = do
   -- Setup FRP network
   moveD <- playerMove
+  rotateD <- playerRotate
   posRef <- liftIO $ newIORef mempty
+  angRef <- liftIO $ newIORef mempty
 
   -- Rendering loop
   setRenderer $ pure $ do
     move <- sample . current $ moveD
+    rotate <- sample . current $ rotateD
     pos <- liftIO $ do
       modifyIORef' posRef (translateTransform move)
       readIORef posRef
-    renderModel ctx player pos
+    angle <- liftIO $ do
+      modifyIORef' angRef (rotateTransform (axisAngle (V3 0 0 1) rotate))
+      readIORef angRef
+    renderModel ctx player (angle <> pos)
 
 -- | Calculate next diff of the player position.
 -- Note that we are not accumulating the translation,
@@ -78,3 +84,21 @@ playerMove = do
   zoomInB <- attachVec (V3 0.0 0 0.1) <$> keyDown GLFW.Key'Equal
   zoomOutB <- attachVec (V3 0.0 0 (-0.1)) <$> keyDown GLFW.Key'Minus
   pure $ sum <$> sequence [upB, downB, leftB, rightB, zoomInB, zoomOutB]
+
+-- | Calculate next diff of the player rotation.
+playerRotate :: forall t m os . MonadApp t os m
+  => m (Dynamic t Float)
+playerRotate = do
+  let att val b = ffor b $ \v -> if v then val else 0
+  qB <- att 0.1 <$> keyDown GLFW.Key'Q
+  rB <- att (-0.1) <$> keyDown GLFW.Key'R
+  pure $ sum <$> sequence [qB, rB]
+
+-- | Calculate next diff of the player rotation.
+playerCursorRotate :: forall t m os . MonadApp t os m
+  => m (Dynamic t Float)
+playerCursorRotate = do
+  let att val b = ffor b $ \v -> if v then val else 0
+  qB <- att 0.1 <$> keyDown GLFW.Key'Q
+  rB <- att (-0.1) <$> keyDown GLFW.Key'R
+  pure $ sum <$> sequence [qB, rB]
