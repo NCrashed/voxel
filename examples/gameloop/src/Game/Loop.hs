@@ -2,6 +2,7 @@ module Game.Loop(
     runGame
 ) where
 
+import Control.Monad
 import Control.Monad.IO.Class
 import Data.IORef
 import Data.Voxel.App
@@ -38,7 +39,7 @@ runGame = runAppHost $ do
       , cameraNear = 1 
       , cameraFar = 100
       }
-  ctx <- newRenderContext win camera
+  ctx <- newPhongContext win camera
   -- Initiate rendering loop
   runApp win $ viewerApp ctx (V.head scene)
 
@@ -48,18 +49,32 @@ runGame = runAppHost $ do
 -- The second part is rendering loop that samples the FRP 
 -- network to render and update state of the game.
 viewerApp :: forall t m os . MonadApp t os m 
-  => RenderContext os
+  => PhongContext os
   -> SceneModel os
   -> m ()
 viewerApp ctx player = do 
   -- Setup FRP network
   moveD <- playerMove 
   posRef <- liftIO $ newIORef mempty
+  -- Some demo printing of input 
+  mouseE <- mouseEvent
+  performEvent_ $ (liftIO . print) <$> mouseE
+  scrollE <- mouseScroll 
+  performEvent_ $ (liftIO . print) <$> scrollE
+  mousePosB <- mousePosition
+  mousePosRef <- liftIO $ newIORef 0
 
   -- Rendering loop
   setRenderer $ pure $ do
     move <- sample . current $ moveD
+    mousePos <- sample mousePosB
     pos <- liftIO $ do 
+      -- Show position
+      oldPos <- readIORef mousePosRef
+      unless (oldPos == mousePos) $ do 
+        print mousePos 
+        writeIORef mousePosRef mousePos 
+      -- Collect positions
       modifyIORef' posRef (translateTransform move)
       readIORef posRef 
     renderModel ctx player pos 

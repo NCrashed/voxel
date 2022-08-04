@@ -2,18 +2,20 @@ module Data.Voxel.App.Class(
     SpiderCtx
   , Renderer
   , KeyEvent(..)
+  , MouseEvent(..)
   , MonadGPipe(..)
   -- * Input helpers
   , keyPressed
   , keyDown
   -- * Reexports 
   , Key(..), KeyState(..), ModifierKeys(..)
+  , MouseButton(..), MouseButtonState(..)
   ) where 
 
 import Data.Word 
 import GHC.Generics (Generic)
 import Graphics.GPipe
-import Graphics.GPipe.Context.GLFW (Key(..), KeyState(..), ModifierKeys(..))
+import Graphics.GPipe.Context.GLFW (Key(..), KeyState(..), ModifierKeys(..), MouseButton(..), MouseButtonState(..))
 import Reflex
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
@@ -33,6 +35,13 @@ data KeyEvent = KeyEvent {
 , _keyEvent_mods     :: !ModifierKeys
 } deriving (Show, Eq, Generic)
 
+-- | Fires each time mouse button is pressed
+data MouseEvent = MouseEvent {
+  _mouseEvent_button :: !MouseButton
+, _mouseEvent_state  :: !MouseButtonState
+, _mouseEvent_mods   :: !ModifierKeys
+} deriving (Show, Eq, Generic)
+
 -- | API for GPipe renderer that are acceptable 
 -- inside FRP network.
 class (Reflex t, Monad m) => MonadGPipe t os m | m -> t, m -> os where
@@ -46,6 +55,12 @@ class (Reflex t, Monad m) => MonadGPipe t os m | m -> t, m -> os where
   frameCounter :: m (Behavior t Word64)
   -- | Get event for key pressed
   keyInput :: m (Event t KeyEvent)
+  -- | Get current mouse position
+  mousePosition :: m (Behavior t (V2 Double))
+  -- | Get event for mouse buttons 
+  mouseEvent :: m (Event t MouseEvent)
+  -- | Get event for mouse scrolling
+  mouseScroll :: m (Event t (V2 Double))
 
 -- | Get event that fires when the key is pressed
 keyPressed :: MonadGPipe t os m => Key -> m (Event t KeyEvent)

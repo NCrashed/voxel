@@ -37,6 +37,16 @@ data GPipeEnv t os = GPipeEnv {
   , _GPipeEnv_key          :: Event t KeyEvent
   -- | Fire command for callback for key press
   , _GPipeEnv_keyFire      :: KeyEvent -> IO ()
+  -- | Current position of mouse cursor
+  , _GPipeEnv_mousePos     :: IORef (V2 Double)
+  -- | Event for mouse buttons
+  , _GPipeEnv_mouseEvent   :: Event t MouseEvent
+  -- | Fire command for callback that catches mouse button events
+  , _GPipeEnv_mouseFire    :: MouseEvent -> IO ()
+  -- | Event that fires when mouse scroll occurs
+  , _GPipeEnv_scrollEvent  :: Event t (V2 Double)
+  -- | Fire for the scroll event. Called in callback by GLFW.
+  , _GPipeEnv_scrollFire   :: V2 Double -> IO ()
   }
 
 newGPipeEnv :: (Reflex t, MonadIO m, TriggerEvent t m) => m (GPipeEnv t os)
@@ -45,6 +55,9 @@ newGPipeEnv = do
   (keyEv, keyFire) <- newTriggerEvent 
   rendererRef <- liftIO $ newIORef $ pure $ pure () 
   frameRef <- liftIO $ newIORef 0 
+  mousePosRef <- liftIO $ newIORef 0 
+  (mouseButtonEv, mouseButtonFire) <- newTriggerEvent 
+  (scrollEv, scrollFire) <- newTriggerEvent 
   pure GPipeEnv {
       _GPipeEnv_shutdown = shutEv
     , _GPipeEnv_shutdownFire = shutdownFire () 
@@ -52,6 +65,11 @@ newGPipeEnv = do
     , _GPipeEnv_frame = frameRef
     , _GPipeEnv_key = keyEv
     , _GPipeEnv_keyFire = keyFire
+    , _GPipeEnv_mousePos = mousePosRef
+    , _GPipeEnv_mouseEvent = mouseButtonEv
+    , _GPipeEnv_mouseFire = mouseButtonFire
+    , _GPipeEnv_scrollEvent = scrollEv 
+    , _GPipeEnv_scrollFire = scrollFire 
     }
 
 -- | That should be called after 'newGPipeEnv' when FRP network is set.
@@ -59,6 +77,12 @@ bindEnvCallbacks :: MonadIO m => Window os c ds -> GPipeEnv t os -> ContextT GLF
 bindEnvCallbacks win GPipeEnv{..} = do 
   void $ GLFW.setKeyCallback win $ Just $ \key scan state mods -> 
     _GPipeEnv_keyFire $! KeyEvent key scan state mods 
+  void $ GLFW.setCursorPosCallback win $ Just $ \x y -> 
+    writeIORef _GPipeEnv_mousePos $! V2 x y 
+  void $ GLFW.setMouseButtonCallback win $ Just $ \button state mods -> 
+    _GPipeEnv_mouseFire $! MouseEvent button state mods
+  void $ GLFW.setScrollCallback win $ Just $ \x y -> 
+    _GPipeEnv_scrollFire $! V2 x y
 
 -- | Basic implementation of 'MonadGPipe'
 newtype GPipeT t os m a = GPipeT { unGPipeT :: ReaderT (GPipeEnv t os) m a }
@@ -89,7 +113,18 @@ instance (PerformEvent t m, MonadIO (Performable m), MonadIO m, MonadIO (PullM t
 
   {-# INLINE keyInput #-}
   keyInput = GPipeT $ asks _GPipeEnv_key 
+
+  {-# INLINE mousePosition #-}
+  mousePosition = do 
+    ref <- GPipeT $ asks _GPipeEnv_mousePos
+    pure $ onDemand $ readIORef ref
   
+  {-# INLINE mouseEvent #-}
+  mouseEvent = GPipeT $ asks _GPipeEnv_mouseEvent
+
+  {-# INLINE mouseScroll #-}
+  mouseScroll = GPipeT $ asks _GPipeEnv_scrollEvent
+
 instance MonadTrans (GPipeT t os) where
   {-# INLINABLE lift #-}
   lift = GPipeT . lift
