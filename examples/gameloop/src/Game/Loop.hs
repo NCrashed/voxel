@@ -9,18 +9,18 @@ import Data.Voxel.App.Class
 import Data.Voxel.Camera
 import Data.Voxel.Scene
 import Data.Voxel.Shader.Phong
-import Data.Voxel.Transform 
+import Data.Voxel.Transform
 import Data.Voxel.Window
-import Game.Player 
+import Game.Player
 import Graphics.GPipe
-import Reflex 
+import Reflex
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
-import qualified Data.Vector as V 
+import qualified Data.Vector as V
 
 -- | Entry point to the game
-runGame :: IO () 
-runGame = runAppHost $ do 
+runGame :: IO ()
+runGame = runAppHost $ do
   -- Allocate window
   let initWidth = 800
   let initHeight = 600
@@ -32,48 +32,49 @@ runGame = runAppHost $ do
   let camera :: Camera Float
       camera = Camera {
         cameraPosition = - V3 0 0 25
-      , cameraRotation = axisAngle (V3 0 0 1) 0
-      , cameraAngle = (pi/9)
+      , cameraRotation = axisAngle (V3 50 10 1) 10
+      , cameraAngle = (pi/12)
       , cameraAspect = (fromIntegral initWidth / fromIntegral initHeight)
-      , cameraNear = 1 
+      , cameraNear = 1
       , cameraFar = 100
       }
   ctx <- newRenderContext win camera
   -- Initiate rendering loop
   runApp win $ viewerApp ctx (V.head scene)
 
--- | Setup the inner game loop. The first phase when we 
+-- | Setup the inner game loop. The first phase when we
 -- allocates FRP network with events for player input.
 --
--- The second part is rendering loop that samples the FRP 
+-- The second part is rendering loop that samples the FRP
 -- network to render and update state of the game.
-viewerApp :: forall t m os . MonadApp t os m 
+viewerApp :: forall t m os . MonadApp t os m
   => RenderContext os
   -> SceneModel os
   -> m ()
-viewerApp ctx player = do 
+viewerApp ctx player = do
   -- Setup FRP network
-  moveD <- playerMove 
+  moveD <- playerMove
   posRef <- liftIO $ newIORef mempty
 
   -- Rendering loop
   setRenderer $ pure $ do
     move <- sample . current $ moveD
-    pos <- liftIO $ do 
+    pos <- liftIO $ do
       modifyIORef' posRef (translateTransform move)
-      readIORef posRef 
-    renderModel ctx player pos 
+      readIORef posRef
+    renderModel ctx player pos
 
 -- | Calculate next diff of the player position.
 -- Note that we are not accumulating the translation,
 -- it is done in the main loop.
-playerMove :: forall t m os . MonadApp t os m 
-  => m (Dynamic t (V3 Float)) 
-playerMove = do 
-  let attachVec val b = ffor b $ \v -> if v then val else 0   
+playerMove :: forall t m os . MonadApp t os m
+  => m (Dynamic t (V3 Float))
+playerMove = do
+  let attachVec val b = ffor b $ \v -> if v then val else 0
   upB <- attachVec (V3 0 0.1 0) <$> keyDown GLFW.Key'Up
   downB <- attachVec (V3 0 (-0.1) 0) <$> keyDown GLFW.Key'Down
   leftB <- attachVec (V3 (-0.1) 0 0) <$> keyDown GLFW.Key'Left
-  rightB <- attachVec (V3 0.1 0 0) <$> keyDown GLFW.Key'Right 
-  pure $ sum <$> sequence [upB, downB, leftB, rightB]
-
+  rightB <- attachVec (V3 0.1 0 0.1) <$> keyDown GLFW.Key'Right
+  zoomInB <- attachVec (V3 0.0 0 0.1) <$> keyDown GLFW.Key'Equal
+  zoomOutB <- attachVec (V3 0.0 0 (-0.1)) <$> keyDown GLFW.Key'Minus
+  pure $ sum <$> sequence [upB, downB, leftB, rightB, zoomInB, zoomOutB]
