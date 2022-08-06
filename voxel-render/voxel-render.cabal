@@ -26,6 +26,8 @@ library
   hs-source-dirs:      src
   exposed-modules:
     Data.Voxel.Camera
+    Data.Voxel.Rect
+    Data.Voxel.Rect.Buffer
     Data.Voxel.Scene
     Data.Voxel.Shader
     Data.Voxel.Shader.Flat 
