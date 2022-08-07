@@ -19,10 +19,10 @@ runGame = runAppHost $ do
   let initHeight = 600
   win <- createWindow "UI example" initWidth initHeight
   -- Create player with LOD level but use only the most detailed one
-  tex <- either error pure =<< loadTexture2D "./ui_atlas.png"
+  tex <- either error pure =<< loadTexture2D "../../voxel-ui/ui_atlas.png"
   let rects = V.fromList [Rect {
-        rectPos = Region (V2 0.1 (1 - 0.1)) (V2 0.3 (1 - 0.3))
-      , rectUv = Region 0 1
+        rectPos = Region 0 1 -- (V2 0.1 (1 - 0.1)) (V2 0.3 (1 - 0.3))
+      , rectUv = Region 0 (0.5)
       , rectLevel = 0  
       }]
   buffs <- rectBuffers rects 

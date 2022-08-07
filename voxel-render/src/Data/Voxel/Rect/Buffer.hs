@@ -74,7 +74,7 @@ writeRectBuffers vs RectBuffers{..} = V.forM_ (V.indexed vs) $ \(i, r@Rect{..}) 
   let z = rectZPos r
   let poses = (\(V2 x y) -> V3 x y z) <$> regionPoints rectPos 
   guardedWrite "positions" (i*4) rectBuffPositions poses
-  guardedWrite "uvs" (i*4) rectBuffUvs $ regionPoints rectUv
+  guardedWrite "uvs" (i*4) rectBuffUvs $ regionUvs rectUv
   guardedWrite "indicies" (i*2*3) rectBuffIndecies regionIndecies
   where 
     guardedWrite name offset buff vec = do

@@ -53,10 +53,10 @@ flatShader win uniform = do
 -- Project positions with ModelViewProjection matrix
 proj :: V4 (V4 VFloat)
   -> RectVertex
-  -> (V4 VFloat, V2 FlatVFloat)
+  -> (V4 VFloat, V2 VFloat)
 proj modelViewProj RectVertex{..} = let
   V3 px py pz = rectPrimPosition
-  in (modelViewProj !* V4 px py pz 1, Flat <$> rectPrimUv)
+  in (modelViewProj !* V4 px py pz 1, rectPrimUv)
 
 -- Set color from sampler
 sampleTex :: Sampler2D (Format RGBAFloat) -> V2 FFloat -> V4 FFloat

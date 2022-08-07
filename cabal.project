@@ -8,5 +8,6 @@ packages:
   voxel-MagicaVoxel
   voxel-render
   voxel-viewer
+  voxel-ui
   examples/ui
   examples/gameloop

@@ -1,0 +1,70 @@
+name:                voxel-ui
+version:             0.0.1.0
+synopsis:            FRP ui for voxel library.
+description:
+  FRP UI for [voxel](http://hackage.haskell.org/package/voxel) library.
+license:             MIT
+license-file:        LICENSE
+copyright:           2022 Anton Gushcha
+maintainer:          Anton Gushcha <ncrashed@protonmail.com>
+category:            Data
+build-type:          Simple
+cabal-version:       1.24
+extra-source-files:
+  README.md
+  CHANGELOG.md
+tested-with:
+    GHC == 8.6.3
+  , GHC == 8.4.4
+  , GHC == 8.2.2
+
+source-repository head
+  type: git
+  location: https://github.com/NCrashed/voxel
+
+library
+  hs-source-dirs:      src
+  exposed-modules:
+    Data.Voxel.UI
+    Data.Voxel.UI.Base
+    Data.Voxel.UI.Button
+    Data.Voxel.UI.Class
+  build-depends:
+      base            >= 4.5      && < 5
+    , dependent-sum
+    , exception-transformers
+    , containers      >= 0.4
+    , text
+    , GLFW-b
+    , GPipe           >= 2.2.4    && < 2.3
+    , GPipe-GLFW      >= 1.4.1.1  && < 1.5
+    , lens            >= 4.10     && < 6
+    , linear          >= 1.20     && < 2
+    , mtl
+    , primitive
+    , ref-tf
+    , reflex          >= 0.6      && < 0.9
+    , stm
+    , transformers
+    , vector          >= 0.10     && < 0.13
+    , voxel-app       >= 0.0      && < 0.1
+    , voxel-render    >= 0.0      && < 0.1
+  default-language:    Haskell2010
+  default-extensions:
+    BangPatterns
+    ConstraintKinds
+    DeriveFunctor
+    DeriveGeneric
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    MultiParamTypeClasses
+    OverloadedStrings
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    TupleSections
+    TypeFamilies
+    UndecidableInstances

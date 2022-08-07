@@ -1,6 +1,7 @@
 module Data.Voxel.Rect(
     Region(..)
   , regionPoints
+  , regionUvs
   , regionIndecies
   , Rect(..)
   , rectZPos
@@ -34,6 +35,20 @@ regionPoints (Region (V2 x1 y1) (V2 x2 y2)) = [
   , V2 x1 y2 
   , V2 x2 y2 
   , V2 x2 y1 
+  ]
+
+-- | Get points of region starting from bottom left corner 
+-- and going counerclockwise.
+--
+-- 2 -- 3 
+-- |    |
+-- 1 -- 4 
+regionUvs :: Region -> [V2 Float]
+regionUvs (Region (V2 x1 y1) (V2 x2 y2)) = [
+    V2 x1 y2
+  , V2 x1 y1 
+  , V2 x2 y1 
+  , V2 x2 y2 
   ]
 
 -- | Get indecies to describe 2 triangles of region 
