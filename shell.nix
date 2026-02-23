@@ -5,6 +5,7 @@ in pkgs.haskellPackages.shellFor {
   nativeBuildInputs = with pkgs.haskellPackages; [
     cabal-install
     ghcid
+    haskell-language-server
   ];
   packages = _: pkgs.lib.attrValues release.packages;
 }
