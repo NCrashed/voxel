@@ -14,6 +14,7 @@ import Data.Voxel.Transform
 import Data.Voxel.Window
 import Graphics.GPipe
 import Reflex 
+import Debug.Trace 
 
 import qualified Data.MagicaVoxel as MV 
 import qualified Data.Vector as GV

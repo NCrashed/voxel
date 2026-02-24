@@ -31,13 +31,13 @@ library
     Data.MagicaVoxel.Types
   build-depends:
       base            >= 4.5      && < 5
-    , array           >= 0.5      && < 0.6
-    , attoparsec      >= 0.13     && < 0.15
+    , array           >= 0.5      && < 0.7
+    , attoparsec      >= 0.13     && < 0.16
     , attoparsec-binary
     , bytestring
-    , containers      >= 0.5      && < 0.7
+    , containers      >= 0.5      && < 0.9
     , mtl
-    , vector          >= 0.10     && < 0.13
+    , vector          >= 0.10     && < 0.14
     , vector-th-unbox >= 0.2      && < 0.3
   default-language:    Haskell2010
   default-extensions:

@@ -3,7 +3,6 @@ packages:
   MagicaVoxel-vox
   voxel
   voxel-app
-  voxel-fir
   voxel-GPipe
   voxel-MagicaVoxel
   voxel-render

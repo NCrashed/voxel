@@ -8,6 +8,8 @@ module Data.Voxel.App.Base(
   ) where 
 
 import Control.Monad.Exception
+import Control.Monad (void)
+import Control.Monad.Fix (MonadFix)
 import Control.Monad.Primitive
 import Control.Monad.Reader 
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..), Ref, readRef)
@@ -18,13 +20,14 @@ import Data.Voxel.Demand
 import Data.Word
 import GHC.Generics 
 import Graphics.GPipe
-import Reflex 
+import Reflex
 import Reflex.Host.Class
+import Reflex.Spider.Internal (HasSpiderTimeline)
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 
 -- | The internal environment of 'GPipeT'
-data GPipeEnv t os = GPipeEnv { 
+data GPipeEnv t os = GPipeEnv {
   -- | An event that requests application termination.
     _GPipeEnv_shutdown     :: Event t ()
   -- | Action that triggers previous event
@@ -33,6 +36,10 @@ data GPipeEnv t os = GPipeEnv {
   , _GPipeEnv_render       :: IORef (Behavior t (Renderer os))
   -- | Frame counter that updated after each draw
   , _GPipeEnv_frame        :: IORef Word64
+  -- | Event that fires each frame with the frame number
+  , _GPipeEnv_frameEvent   :: Event t Word64
+  -- | Fire command for frame event
+  , _GPipeEnv_frameFire    :: Word64 -> IO ()
   -- | Event that fired when key callback is called
   , _GPipeEnv_key          :: Event t KeyEvent
   -- | Fire command for callback for key press
@@ -51,25 +58,28 @@ data GPipeEnv t os = GPipeEnv {
 
 newGPipeEnv :: (Reflex t, MonadIO m, TriggerEvent t m) => m (GPipeEnv t os)
 newGPipeEnv = do
-  (shutEv, shutdownFire) <- newTriggerEvent 
-  (keyEv, keyFire) <- newTriggerEvent 
-  rendererRef <- liftIO $ newIORef $ pure $ pure () 
-  frameRef <- liftIO $ newIORef 0 
-  mousePosRef <- liftIO $ newIORef 0 
-  (mouseButtonEv, mouseButtonFire) <- newTriggerEvent 
-  (scrollEv, scrollFire) <- newTriggerEvent 
+  (shutEv, shutdownFire) <- newTriggerEvent
+  (keyEv, keyFire) <- newTriggerEvent
+  (frameEv, frameFire) <- newTriggerEvent
+  rendererRef <- liftIO $ newIORef $ pure $ pure ()
+  frameRef <- liftIO $ newIORef 0
+  mousePosRef <- liftIO $ newIORef 0
+  (mouseButtonEv, mouseButtonFire) <- newTriggerEvent
+  (scrollEv, scrollFire) <- newTriggerEvent
   pure GPipeEnv {
       _GPipeEnv_shutdown = shutEv
-    , _GPipeEnv_shutdownFire = shutdownFire () 
+    , _GPipeEnv_shutdownFire = shutdownFire ()
     , _GPipeEnv_render = rendererRef
     , _GPipeEnv_frame = frameRef
+    , _GPipeEnv_frameEvent = frameEv
+    , _GPipeEnv_frameFire = frameFire
     , _GPipeEnv_key = keyEv
     , _GPipeEnv_keyFire = keyFire
     , _GPipeEnv_mousePos = mousePosRef
     , _GPipeEnv_mouseEvent = mouseButtonEv
     , _GPipeEnv_mouseFire = mouseButtonFire
-    , _GPipeEnv_scrollEvent = scrollEv 
-    , _GPipeEnv_scrollFire = scrollFire 
+    , _GPipeEnv_scrollEvent = scrollEv
+    , _GPipeEnv_scrollFire = scrollFire
     }
 
 -- | That should be called after 'newGPipeEnv' when FRP network is set.
@@ -92,11 +102,11 @@ newtype GPipeT t os m a = GPipeT { unGPipeT :: ReaderT (GPipeEnv t os) m a }
 runGPipeT :: Monad m => GPipeT t os m a -> GPipeEnv t os -> m a 
 runGPipeT (GPipeT m) env = runReaderT m env  
 
-instance (PerformEvent t m, MonadIO (Performable m), MonadIO m, MonadIO (PullM t), t ~ SpiderTimeline x) => MonadGPipe t os (GPipeT t os m) where 
+instance (PerformEvent t m, MonadHold t m, MonadIO (Performable m), MonadIO m, MonadIO (PullM t), HasSpiderTimeline x, t ~ SpiderTimeline x) => MonadGPipe t os (GPipeT t os m) where
   {-# INLINABLE setShutdownEvent #-}
-  setShutdownEvent e = do 
+  setShutdownEvent e = do
     env <- GPipeT ask
-    performEvent_ $ liftIO (_GPipeEnv_shutdownFire env) <$ e 
+    performEvent_ $ liftIO (_GPipeEnv_shutdownFire env) <$ e
 
   {-# INLINE shutdownEvent #-}
   shutdownEvent = GPipeT $ asks _GPipeEnv_shutdown
@@ -107,18 +117,18 @@ instance (PerformEvent t m, MonadIO (Performable m), MonadIO m, MonadIO (PullM t
     liftIO $ writeIORef (_GPipeEnv_render env) r
 
   {-# INLINE frameCounter #-}
-  frameCounter = do 
-    ref <- GPipeT $ asks _GPipeEnv_frame
-    pure $ onDemand $ readIORef ref
+  frameCounter = do
+    frameEv <- GPipeT $ asks _GPipeEnv_frameEvent
+    fmap current $ holdDyn 0 frameEv
 
   {-# INLINE keyInput #-}
-  keyInput = GPipeT $ asks _GPipeEnv_key 
+  keyInput = GPipeT $ asks _GPipeEnv_key
 
   {-# INLINE mousePosition #-}
-  mousePosition = do 
+  mousePosition = do
     ref <- GPipeT $ asks _GPipeEnv_mousePos
     pure $ onDemand $ readIORef ref
-  
+
   {-# INLINE mouseEvent #-}
   mouseEvent = GPipeT $ asks _GPipeEnv_mouseEvent
 

@@ -13,9 +13,10 @@ module Data.Voxel.TriggerEvent
   , EventTriggerRef (..)
   ) where
 
-import Control.Concurrent.STM.TChan 
+import Control.Concurrent.STM.TChan
 import Control.Applicative (liftA2)
 import Control.Monad.Exception
+import Control.Monad.Fix (MonadFix)
 import Control.Monad.Primitive
 import Control.Monad.Reader
 import Control.Monad.Ref

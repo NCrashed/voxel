@@ -1,7 +1,7 @@
-# To update nix-prefetch-git https://github.com/NixOS/nixpkgs
+# To update nix-shell -p nix-prefetch-git --command 'nix-prefetch-git https://github.com/NixOS/nixpkgs'
 import ((import <nixpkgs> {}).fetchFromGitHub {
   owner = "NixOS";
   repo = "nixpkgs";
-  rev = "aa2c22d53f30c37a83d0630cbfc01d247a427cc9";
-  sha256  = "0021f0s414s7wffdyjkqjcw23s5yyrr0n76p4bxpp9xk3bblvbhv";
+  rev = "5aa13af2ee24976d157f6bc652c9f0f98f23b2c7";
+  sha256  = "0g2xc6ljiq879mqlfba2yk2lfq7z548k4xd1xajz95xqr9fqkidk";
 })

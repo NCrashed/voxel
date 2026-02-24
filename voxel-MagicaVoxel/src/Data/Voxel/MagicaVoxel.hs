@@ -25,5 +25,5 @@ convertVoxModel :: MV.VoxModel -> MV.VoxPalette -> VoxelGrid RGBA
 convertVoxModel MV.VoxModel{..} pallete = G.create $ do 
   g <- GM.new (V3 (fromIntegral voxModelX) (fromIntegral voxModelY) (fromIntegral voxModelZ))
   flip VU.mapM_ voxModelVoxels $ \(MV.Voxel x y z i) -> 
-    GM.write g (V3 (fromIntegral x) (fromIntegral y) (fromIntegral z)) (pallete VU.! (fromIntegral i - 1))
+    GM.unsafeWrite g (V3 (fromIntegral x) (fromIntegral y) (fromIntegral z)) (pallete VU.! (fromIntegral i - 1))
   pure g

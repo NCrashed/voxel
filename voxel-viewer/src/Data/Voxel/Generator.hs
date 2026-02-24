@@ -45,5 +45,5 @@ generateMap = G.create $ do
       let dv = if rx `mod` 2 == 0 then 0   
             else 0.05 * fromIntegral rz / (fromIntegral (maxBound :: Int))
       let col = V3 (1.0 + dv) (158 / 255 + dv) (68 / 255 + dv)
-      GM.write m (V3 x y i) col
+      GM.unsafeWrite m (V3 x y i) col
   pure m

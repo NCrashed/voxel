@@ -4,6 +4,7 @@ module Data.MagicaVoxel.Parser(
   ) where
 
 import Control.Applicative
+import Control.Monad (replicateM)
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict
 import Data.Array.ST (newArray, readArray, MArray, STUArray)

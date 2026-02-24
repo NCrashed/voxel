@@ -6,7 +6,9 @@ module Data.Voxel.UI.Base(
 , runUiT
 ) where
 
+import Control.Monad (when)
 import Control.Monad.Exception
+import Control.Monad.Fix (MonadFix)
 import Control.Monad.Primitive
 import Control.Monad.Reader 
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..), Ref, readRef)
@@ -19,8 +21,9 @@ import Data.Voxel.Demand
 import Data.Voxel.Rect 
 import Data.Voxel.UI.Class
 import GHC.Generics
-import Reflex 
+import Reflex
 import Reflex.Host.Class
+import Reflex.Spider.Internal (HasSpiderTimeline)
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV 
@@ -90,7 +93,7 @@ newtype UiT t os m a = UiT { unUiT :: ReaderT (UiEnv t os) m a }
 runUiT :: Monad m => UiT t os m a -> UiEnv t os -> m a 
 runUiT (UiT m) env = runReaderT m env  
 
-instance (PerformEvent t m, MonadSample t m, MonadIO (Performable m), MonadIO m, MonadIO (PullM t), t ~ SpiderTimeline x) => MonadUI t (UiT t os m) where 
+instance (PerformEvent t m, MonadSample t m, MonadIO (Performable m), MonadIO m, MonadIO (PullM t), HasSpiderTimeline x, t ~ SpiderTimeline x) => MonadUI t (UiT t os m) where 
   {-# INLINABLE drawableRects #-}
   drawableRects = do
      ref <- UiT $ asks _uiEnv_rects

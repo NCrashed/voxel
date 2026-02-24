@@ -4,7 +4,6 @@ import Data.Bifunctor
 import Data.Bits
 import Data.Foldable (traverse_)
 import Data.IntMap (IntMap)
-import Data.List (foldl')
 import Data.Maybe
 import Data.Vector.Unboxed (Unbox)
 import Data.Voxel.Combine
@@ -68,7 +67,7 @@ nextGridLod g = G.create $ do
         let v6 = at $ V3 (2*x)   (2*y+1) (2*z+1)  
         let v7 = at $ V3 (2*x+1) (2*y+1) (2*z+1)
         let value = combineCube v0 v1 v2 v3 v4 v5 v6 v7
-        GM.write m v value
+        GM.unsafeWrite m v value
   traverse_ writeLodVoxel is 
   pure m
 

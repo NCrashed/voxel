@@ -129,6 +129,10 @@ runApp win app = do
     -- have subscribers, and update the display. If we detect a shutdown
     -- request, the application terminates.
     fix $ \loop -> do
+      -- Fire the frame event before processing other events
+      currentFrame <- liftIO $ readIORef $ _GPipeEnv_frame env
+      liftIO $ _GPipeEnv_frameFire env currentFrame
+
       -- Read the next event (non-blocking).
       ers <- liftIO . atomically $ tryReadTChan events
       stop <- do
@@ -138,7 +142,7 @@ runApp win app = do
           readEvent shutdown >>= \case
             Nothing -> return False
             Just _ -> return True
-      if or stop then pure ()                
+      if or stop then pure ()
         else do  -- Otherwise, update the display and loop.
           renderBehavior <- liftIO $ readIORef $ _GPipeEnv_render env
           renderFn <- sample renderBehavior

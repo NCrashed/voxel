@@ -4,6 +4,8 @@ module Data.Voxel.Texture(
 
 import Codec.Picture (readImage, convertRGBA8, imageWidth, imageHeight, imageData)
 import Control.Monad.Except
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Class (lift)
 import Data.Voxel.App 
 import Data.Word 
 import Graphics.GPipe 
