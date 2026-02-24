@@ -10,3 +10,4 @@ packages:
   voxel-ui
   examples/ui
   examples/gameloop
+  examples/atlas-demo

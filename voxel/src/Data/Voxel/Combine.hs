@@ -2,9 +2,10 @@ module Data.Voxel.Combine(
     CombineVoxel(..)
   ) where
 
-import Linear
-import Data.Voxel.Empty
+import Data.Int
 import Data.List (foldl1')
+import Data.Voxel.Empty
+import Linear
 
 -- | Indicates that 4 voxel can be combined into one single voxel
 class CombineVoxel a where
@@ -50,10 +51,26 @@ instance CombineVoxel Float where
   combineVoxel a b = sqrt $ (a*a + b*b) / 2.0
   {-# INLINE combineVoxel #-}
 
-instance CombineVoxel Double where 
-  combineCube v0 v1 v2 v3 v4 v5 v6 v7 
+instance CombineVoxel Double where
+  combineCube v0 v1 v2 v3 v4 v5 v6 v7
     = sqrt $ (v0*v0 + v1*v1 + v2*v2 + v3*v3 + v4*v4 + v5*v5 + v6*v6 + v7*v7) / 8.0
   {-# INLINE combineCube #-}
 
   combineVoxel a b = sqrt $ (a*a + b*b) / 2.0
+  {-# INLINE combineVoxel #-}
+
+-- | For material IDs, combining takes the first non-empty voxel (or 0 if all empty)
+instance CombineVoxel Int32 where
+  combineCube v0 v1 v2 v3 v4 v5 v6 v7
+    | empties > (4 :: Int) = emptyVoxel
+    | otherwise = head notEmpties
+    where
+      vs = [v0, v1, v2, v3, v4, v5, v6, v7]
+      notEmpties = filter (not . isEmptyVoxel) vs
+      empties = length $ filter isEmptyVoxel vs
+  {-# INLINE combineCube #-}
+
+  combineVoxel a b
+    | isEmptyVoxel a = b
+    | otherwise = a
   {-# INLINE combineVoxel #-}
