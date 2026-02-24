@@ -8,6 +8,13 @@ module Data.Voxel.Shader.PhongAtlas(
   , newPhongAtlasContext
   , renderModelAtlas
   , SceneModelAtlas
+  , DirectionalLight(..)
+  , PointLight(..)
+  , Lighting(..)
+  , noLight
+  , ambientOnly
+  , directionalOnly
+  , pointOnly
   ) where
 
 import Control.Lens ((^.))
@@ -49,8 +56,55 @@ data PhongAtlasEnv os = PhongAtlasEnv
     -- Pixel value = texture layer index
   }
 
--- | Uniform buffer for MVP matrix and normal matrix (same as Phong shader)
-type PhongAtlasUniform os = Buffer os (Uniform (V4 (B4 Float), V3 (B3 Float)))
+-- | Uniform buffer for MVP matrix, normal matrix, and lighting
+-- Contains: (MVP matrix, Normal matrix, (DirLight direction, DirLight color+intensity),
+--            (PointLight position, PointLight color+power), ambient)
+type PhongAtlasUniform os = Buffer os (Uniform
+  ( V4 (B4 Float)  -- MVP matrix
+  , V3 (B3 Float)  -- Normal matrix
+  , B3 Float       -- Directional light direction
+  , B4 Float       -- Directional light color (RGB) + intensity (A)
+  , B3 Float       -- Point light position
+  , B4 Float       -- Point light color (RGB) + power/attenuation (A)
+  , B Float        -- Ambient intensity
+  ))
+
+-- | Directional light configuration
+data DirectionalLight = DirectionalLight
+  { dirLightDirection :: !(V3 Float)  -- ^ Direction TO the light (will be normalized)
+  , dirLightColor     :: !(V3 Float)  -- ^ RGB color of the light (0-1 range)
+  , dirLightIntensity :: !Float       -- ^ Light intensity (0 = disabled)
+  } deriving (Show, Eq)
+
+-- | Point light configuration
+data PointLight = PointLight
+  { pointLightPosition :: !(V3 Float)  -- ^ World position of the light
+  , pointLightColor    :: !(V3 Float)  -- ^ RGB color of the light (0-1 range)
+  , pointLightPower    :: !Float       -- ^ Light power (affects falloff, 0 = disabled)
+  } deriving (Show, Eq)
+
+-- | Combined lighting configuration
+data Lighting = Lighting
+  { lightingAmbient     :: !Float                -- ^ Ambient light intensity (0-1)
+  , lightingDirectional :: !(Maybe DirectionalLight)  -- ^ Optional directional light
+  , lightingPoint       :: !(Maybe PointLight)        -- ^ Optional point light
+  } deriving (Show, Eq)
+
+-- | No lighting (completely dark except ambient)
+noLight :: Lighting
+noLight = Lighting 0 Nothing Nothing
+
+-- | Ambient light only
+ambientOnly :: Float -> Lighting
+ambientOnly amb = Lighting amb Nothing Nothing
+
+-- | Directional light with ambient
+directionalOnly :: Float -> DirectionalLight -> Lighting
+directionalOnly amb dir = Lighting amb (Just dir) Nothing
+
+-- | Point light with ambient
+pointOnly :: Float -> PointLight -> Lighting
+pointOnly amb pt = Lighting amb Nothing (Just pt)
 
 -- | Loaded model to GPU to render with material IDs
 type SceneModelAtlas os = Render
@@ -63,8 +117,12 @@ phongAtlasShader
   -> Shader os (PhongAtlasEnv os) ()
 phongAtlasShader win uniform = do
   sides <- toPrimitiveStream primitives
-  (modelViewProj, normMat) <- getUniform (const (uniform, 0))
-  let projectedSides = proj modelViewProj normMat <$> sides
+  (modelViewProj, normMat, dirLightDir, dirLightColorInt, pointLightPos, pointLightColorPow, ambient)
+    <- getUniform (const (uniform, 0))
+  -- Pass light params through vertex shader as Flat values
+  let projectedSides = proj modelViewProj normMat
+                         dirLightDir dirLightColorInt pointLightPos pointLightColorPow ambient
+                         <$> sides
 
   -- Create samplers
   diffSampler <- newSampler2DArray diffuseAtlas
@@ -82,27 +140,54 @@ phongAtlasShader win uniform = do
 
   drawWindowColorDepth (const (win, colorOption, depthOption)) litFragsWithDepth
 
--- | Project vertex to clip space, outputting data for fragment shader
-proj :: V4 (V4 VFloat)
-     -> V3 (V3 VFloat)
+-- | Project vertex to clip space, passing light params as Flat values
+-- Uses nested tuples to stay within GPipe's tuple size limits
+proj :: V4 (V4 VFloat)      -- ^ Model-view-projection matrix
+     -> V3 (V3 VFloat)      -- ^ Normal matrix
+     -> V3 VFloat           -- ^ Directional light direction
+     -> V4 VFloat           -- ^ Directional light color + intensity
+     -> V3 VFloat           -- ^ Point light position
+     -> V4 VFloat           -- ^ Point light color + power
+     -> VFloat              -- ^ Ambient
      -> MeshVertex VInt
-     -> (V4 VFloat, (V3 FlatVFloat, V2 VFloat, VFloat))
-proj modelViewProj normMat MeshVertex{..} =
+     -> (V4 VFloat, ((V3 FlatVFloat, V2 VFloat, VFloat, V3 VFloat),
+                     (V3 FlatVFloat, V4 FlatVFloat, V3 FlatVFloat, V4 FlatVFloat, FlatVFloat)))
+proj modelViewProj normMat dirLightDir dirLightColorInt pointLightPos pointLightColorPow ambient MeshVertex{..} =
   let V3 px py pz = meshPrimPosition
+      worldPos = V3 px py pz  -- World position for point light calc
       clipPos = modelViewProj !* V4 px py pz 1
       worldNormal = normMat !* meshPrimNormal
-      -- Convert material ID to float for passing to fragment shader
       matIdFloat = toFloat meshPrimData
-  in (clipPos, (fmap Flat worldNormal, meshPrimUv, matIdFloat))
+      -- Geometry data
+      geomData = (fmap Flat worldNormal, meshPrimUv, matIdFloat, worldPos)
+      -- Light parameters (all Flat since constant across vertices)
+      lightData = ( fmap Flat dirLightDir
+                  , fmap Flat dirLightColorInt
+                  , fmap Flat pointLightPos
+                  , fmap Flat pointLightColorPow
+                  , Flat ambient
+                  )
+  in (clipPos, (geomData, lightData))
+
+-- | Convert sRGB color to linear space (gamma 2.2)
+srgbToLinear :: FFloat -> FFloat
+srgbToLinear c = c ** 2.2
+
+-- | Convert linear color to sRGB space (gamma 1/2.2)
+linearToSrgb :: FFloat -> FFloat
+linearToSrgb c = c ** (1.0 / 2.2)
 
 -- | Sample texture and apply Phong lighting with normal mapping
 sampleAndLight
-  :: Sampler2DArray (Format RGBAFloat)
-  -> Sampler2DArray (Format RGBAFloat)
-  -> Sampler2D (Format RFloat)
-  -> (V3 FFloat, V2 FFloat, FFloat)  -- ^ (normal, uv, materialId as float)
+  :: Sampler2DArray (Format RGBAFloat)  -- ^ Diffuse texture sampler
+  -> Sampler2DArray (Format RGBAFloat)  -- ^ Normal map sampler
+  -> Sampler2D (Format RFloat)          -- ^ Material lookup sampler
+  -> ((V3 FFloat, V2 FFloat, FFloat, V3 FFloat),
+      (V3 FFloat, V4 FFloat, V3 FFloat, V4 FFloat, FFloat))
+      -- ^ ((normal, uv, materialId, worldPos), (dirLightDir, dirLightColorInt, pointLightPos, pointLightColorPow, ambient))
   -> V4 FFloat
-sampleAndLight diffSampler normSampler matSampler (normal, uv, matIdF) =
+sampleAndLight diffSampler normSampler matSampler
+  ((normal, uv, matIdF, worldPos), (dirLightDir, dirLightColorInt, pointLightPos, pointLightColorPow, ambient)) =
   let -- Determine face direction from normal (0-5)
       faceIdx = normalToFaceIndex normal
 
@@ -113,8 +198,12 @@ sampleAndLight diffSampler normSampler matSampler (normal, uv, matIdF) =
       -- Sample from texture array using UV and layer
       V2 u v = uv
       uvLayer = V3 u v texLayer
-      diffuse = sample2DArray diffSampler SampleAuto Nothing uvLayer
+      diffuseSrgb = sample2DArray diffSampler SampleAuto Nothing uvLayer
       normalSample = sample2DArray normSampler SampleAuto Nothing uvLayer
+
+      -- Convert diffuse texture from sRGB to linear space for lighting
+      V4 dr dg db da = diffuseSrgb
+      diffuseLinear = V3 (srgbToLinear dr) (srgbToLinear dg) (srgbToLinear db)
 
       -- Compute TBN matrix for this face
       (tangent, bitangent, _) = computeTBN normal
@@ -123,17 +212,42 @@ sampleAndLight diffSampler normSampler matSampler (normal, uv, matIdF) =
       shadingNormal = applyNormalMap normal tangent bitangent normalSample
       V3 nx ny nz = shadingNormal
 
-      -- Apply Phong lighting with hardcoded directional light
-      lightDir = signorm $ V3 (-1) (-1) 1
-      nDotL = maxB 0 (nx * (lightDir^._x) + ny * (lightDir^._y) + nz * (lightDir^._z))
-      ambient = 0.3
-      lighting = ambient + nDotL * 0.7
+      -- Unpack directional light parameters
+      V4 dirR dirG dirB dirIntensity = dirLightColorInt
 
-      -- Apply lighting to texture
-      V4 dr dg db da = diffuse
-      lit = V4 (dr * lighting) (dg * lighting) (db * lighting) da
+      -- Compute directional light contribution
+      dirLightDirNorm = signorm dirLightDir
+      dirNdotL = maxB 0 (nx * (dirLightDirNorm^._x) + ny * (dirLightDirNorm^._y) + nz * (dirLightDirNorm^._z))
+      dirContribR = dirNdotL * dirIntensity * dirR
+      dirContribG = dirNdotL * dirIntensity * dirG
+      dirContribB = dirNdotL * dirIntensity * dirB
 
-  in lit
+      -- Unpack point light parameters
+      V4 ptR ptG ptB ptPower = pointLightColorPow
+
+      -- Compute point light contribution
+      toLight = pointLightPos - worldPos
+      dist = norm toLight
+      pointLightDir = signorm toLight
+      -- Attenuation: 1 / (1 + power * dist^2)
+      attenuation = 1.0 / (1.0 + ptPower * dist * dist)
+      ptNdotL = maxB 0 (nx * (pointLightDir^._x) + ny * (pointLightDir^._y) + nz * (pointLightDir^._z))
+      ptContribR = ptNdotL * attenuation * ptR
+      ptContribG = ptNdotL * attenuation * ptG
+      ptContribB = ptNdotL * attenuation * ptB
+
+      -- Combine all lighting (ambient + directional + point) in linear space
+      V3 linR linG linB = diffuseLinear
+      litR = linR * (ambient + dirContribR + ptContribR)
+      litG = linG * (ambient + dirContribG + ptContribG)
+      litB = linB * (ambient + dirContribB + ptContribB)
+
+      -- Convert back to sRGB for display
+      outR = linearToSrgb litR
+      outG = linearToSrgb litG
+      outB = linearToSrgb litB
+
+  in V4 outR outG outB da
 
 -- | Convert axis-aligned normal to face index (0-5)
 -- Matches Side enum: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z
@@ -246,8 +360,9 @@ renderModelAtlas
   :: PhongAtlasContext os
   -> SceneModelAtlas os   -- ^ Loaded scene model with material IDs
   -> Transform Float      -- ^ Model transformation
+  -> Lighting             -- ^ Light configuration
   -> SpiderCtx os ()
-renderModelAtlas PhongAtlasContext{..} model transform = do
+renderModelAtlas PhongAtlasContext{..} model transform lighting = do
   -- Write this frame's uniform value
   size@(V2 w h) <- getFrameBufferSize phongAtlasWindow
   let newCam = phongAtlasCamera { cameraAspect = fromIntegral w / fromIntegral h }
@@ -255,7 +370,26 @@ renderModelAtlas PhongAtlasContext{..} model transform = do
       viewProjMat = cameraProjMat newCam !*! cameraViewMat newCam !*! modelMat
       normMat = fromQuaternion (transformRotation transform)
 
-  writeBuffer phongAtlasMatrix 0 [(viewProjMat, normMat)]
+      -- Pack directional light parameters (zero if disabled)
+      (dirLightDir, dirLightColorInt) = case lightingDirectional lighting of
+        Just dl -> ( signorm (dirLightDirection dl)
+                   , let V3 r g b = dirLightColor dl
+                     in V4 r g b (dirLightIntensity dl)
+                   )
+        Nothing -> (V3 0 0 1, V4 0 0 0 0)  -- Disabled
+
+      -- Pack point light parameters (zero power if disabled)
+      (pointLightPos, pointLightColorPow) = case lightingPoint lighting of
+        Just pl -> ( pointLightPosition pl
+                   , let V3 r g b = pointLightColor pl
+                     in V4 r g b (pointLightPower pl)
+                   )
+        Nothing -> (V3 0 0 0, V4 0 0 0 0)  -- Disabled
+
+      ambient = lightingAmbient lighting
+
+  writeBuffer phongAtlasMatrix 0
+    [(viewProjMat, normMat, dirLightDir, dirLightColorInt, pointLightPos, pointLightColorPow, ambient)]
 
   -- Render the frame
   render $ do

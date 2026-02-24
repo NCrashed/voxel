@@ -12,7 +12,7 @@ import Data.Voxel.App.Class
 import Data.Voxel.Camera
 import Data.Voxel.Material
 import Data.Voxel.Scene
-import Data.Voxel.Shader.PhongAtlas
+import Data.Voxel.Shader.PhongAtlas (PhongAtlasContext, newPhongAtlasContext, renderModelAtlas, Lighting(..), PointLight(..))
 import Data.Voxel.Texture.Atlas
 import Data.Voxel.Transform
 import Data.Voxel.Window
@@ -52,7 +52,7 @@ runDemo = runAppHost $ do
         ]
 
   liftIO $ putStrLn "Loading textures..."
-  atlasResult <- loadTextureAtlasWithNormals texturePaths (Just normalPaths)
+  atlasResult <- loadTextureAtlasWithNormals texturePaths Nothing -- (Just normalPaths)
   atlas <- case atlasResult of
     Left err -> do
       liftIO $ putStrLn $ "Failed to load textures: " ++ err
@@ -84,13 +84,13 @@ runDemo = runAppHost $ do
   let gridData =
         [ 2, 2, 2    -- z=0, y=0: x=0,1 (dirt)
         , 2, 2, 2
-        , 2, 2, 0    -- z=0, y=1: x=0,1 (dirt)
-        , 1, 0, 0    -- z=1, y=0: x=0,1 (grass)
+        , 2, 2, 0     
+        , 1, 0, 0     
         , 2, 1, 0
         , 1, 0, 0
         , 0, 0, 0
         , 1, 0, 0
-        , 0, 0, 0    -- z=1, y=1: x=0,1 (grass)
+        , 0, 0, 0     
         ] :: [Int32]
       grid = G.fromList (V3 3 3 3) gridData
 
@@ -110,8 +110,8 @@ runDemo = runAppHost $ do
   -- Position camera to look at origin from an angle
   let camera :: Camera Float
       camera = Camera
-        { cameraPosition = - V3 0 0 4  -- Behind and above, looking at origin
-        , cameraRotation = axisAngle (V3 1 0 0) (-0.6)  -- Tilt down to see top
+        { cameraPosition = V3 0 0 (-4)  -- Behind and above, looking at origin
+        , cameraRotation =  (axisAngle (V3 1 0 0) (-0.6)) * (axisAngle (V3 0 0 1) (-0.3))  -- Tilt down to see top
         , cameraAngle = pi/4
         , cameraAspect = fromIntegral initWidth / fromIntegral initHeight
         , cameraNear = 0.1
@@ -152,26 +152,41 @@ centeredTransform finalPos rotation scale = Transform
     rotatedCenter = rotate rotation center
     translation = finalPos - rotatedCenter
 
--- | Main application loop with rotation animation
+-- | Main application loop with rotating point light
 demoApp :: forall t m os . MonadApp t os m
   => PhongAtlasContext os
   -> SceneModelMaterial os
   -> m ()
 demoApp ctx model = do
-  -- Track rotation angle
+  -- Track light rotation angle
   angleRef <- liftIO $ newIORef (0 :: Float)
 
   -- Rendering loop
   setRenderer $ pure $ do
-    -- Update rotation
+    -- Update light angle
     angle <- liftIO $ do
-      modifyIORef' angleRef (+ 0.002)
+      modifyIORef' angleRef (+ 0.005)
       readIORef angleRef
 
-    -- Create transform with rotation around cube center
-    let rotation = axisAngle (V3 0 0 1) angle
-        scale = V3 1 1 1
-        finalPos = V3 0 0 0  -- Cube center will be at origin
-        transform = centeredTransform finalPos rotation scale
+    -- Static model transform (centered at origin)
+    let scale = V3 1.5 1.5 1.5
+        finalPos = V3 0 0 0
+        transform = centeredTransform finalPos (axisAngle (V3 0 0 1) 0) scale
 
-    renderModelAtlas ctx model transform
+    -- Rotating point light orbiting around the cubes
+    let orbitRadius = 2.0
+        lightX = orbitRadius * cos angle
+        lightY = orbitRadius * sin angle
+        lightZ = 1.5  -- Slightly above the cubes
+        pointLight = PointLight
+          { pointLightPosition = V3 lightX lightY lightZ
+          , pointLightColor    = V3 2.1 2 0.1  -- Warm white
+          , pointLightPower    = 10 -- Attenuation factor
+          }
+        lighting = Lighting
+          { lightingAmbient     = 0.001
+          , lightingDirectional = Nothing  -- No directional light (like a cave)
+          , lightingPoint       = Just pointLight
+          }
+
+    renderModelAtlas ctx model transform lighting

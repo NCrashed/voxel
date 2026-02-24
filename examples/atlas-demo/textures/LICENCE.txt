@@ -1,0 +1,69 @@
+Less Dirt texture pack
+~~~~~~~~~~~~~~~~~~~~~~
+
+Textures in /default/ are modified versions of textures from Minetest Game
+https://github.com/minetest/minetest_game/blob/master/mods/default/README.txt
+
+Which is Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)
+http://creativecommons.org/licenses/by-sa/3.0/
+
+The authors of Minetest Game textures:
+
+paramat (CC BY-SA 3.0):
+  default_dry_grass_side.png
+  default_grass_side.png
+  default_stones_side.png -- Derived from a texture by sofar (CC0 1.0)
+  default_moss_side.png
+
+TumeniNodes (CC BY-SA 3.0):
+  default_coniferous_litter_side.png
+  
+Gambit (CC BY-SA 3.0):
+  default_snow_side.png  
+  
+npx (CC BY-SA 3.0):
+  default_rainforest_litter.png
+  default_rainforest_litter_side.png
+
+---
+
+  
+  
+Textures in /mcl_core/ are modified versions of textures from MineClone 2
+https://repo.or.cz/MineClone/MineClone2.git
+
+MineClone2 uses textures from Pixel-Perfection by Hugh "XSSheep" Rutland, converted to Minetest by sofar.
+
+Pixel-Perfection is Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+https://creativecommons.org/licenses/by-sa/4.0/
+
+---
+
+
+
+Textures in /ethereal/ are modified versions of textures from Ethereal
+https://notabug.org/TenPlus1/ethereal.git
+
+Ethereal is by TenPlus1 and MIT licensed:
+
+The MIT License (MIT)
+
+Copyright (c) 2016 TenPlus1
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
