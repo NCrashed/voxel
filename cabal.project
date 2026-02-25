@@ -11,3 +11,4 @@ packages:
   examples/ui
   examples/gameloop
   examples/atlas-demo
+  examples/pixel-art-demo

@@ -17,6 +17,7 @@ module Data.Voxel.Shader.PhongAtlas(
   , PhongAtlasMultiShadowContext(..)
   , newPhongAtlasMultiShadowContext
   , renderModelAtlasMultiShadow
+  , renderModelAtlasMultiShadowToImages
   , maxMultiShadowLights
   , maxSimpleLights
     -- * Scene models
@@ -919,18 +920,47 @@ data PhongAtlasEnvMultiShadow os = PhongAtlasEnvMultiShadow
     -- ^ Dual paraboloid shadow array (4 lights × 2 hemispheres = 8 layers)
   }
 
+-- | Shader environment for multi-light shadow rendering to off-screen images
+-- Uses drawDepth for proper depth testing between triangles
+data PhongAtlasEnvMultiShadowToImage os = PhongAtlasEnvMultiShadowToImage
+  { multiShadowToImagePrimitives    :: PrimitiveArray Triangles (MeshArray (ArrayOf Int32))
+  , multiShadowToImageRasterOptions :: (Side, ViewPort, DepthRange)
+  , multiShadowToImageDiffuseAtlas  :: ( Texture2DArray os (Format RGBAFloat)
+                                       , SamplerFilter RGBAFloat
+                                       , (EdgeMode2, BorderColor RGBAFloat)
+                                       )
+  , multiShadowToImageNormalAtlas   :: ( Texture2DArray os (Format RGBAFloat)
+                                       , SamplerFilter RGBAFloat
+                                       , (EdgeMode2, BorderColor RGBAFloat)
+                                       )
+  , multiShadowToImageMaterialLookup :: ( Texture2D os (Format RFloat)
+                                        , SamplerFilter RFloat
+                                        , (EdgeMode2, BorderColor RFloat)
+                                        )
+  , multiShadowToImageDepthArray    :: ( Texture2DArray os (Format Depth)
+                                       , SamplerFilter Depth
+                                       , (EdgeMode2, BorderColor Depth)
+                                       )
+  , multiShadowToImageColorTarget   :: Image (Format RGBAFloat)
+    -- ^ Target color image
+  , multiShadowToImageDepthTarget   :: Image (Format Depth)
+    -- ^ Target depth image for depth testing
+  }
+
 -- | Context for multi-light shadow rendering (using dual paraboloid shadows)
 data PhongAtlasMultiShadowContext os = PhongAtlasMultiShadowContext
-  { pmsWindow       :: !(Window os RGBAFloat Depth)
-  , pmsMatrix       :: !(MultiShadowUniform os)
-  , pmsCamera       :: !(Camera Float)
-  , pmsMainShader   :: !(CompiledShader os (PhongAtlasEnvMultiShadow os))
-  , pmsShadowShader :: !(CompiledShader os (DPShadowPassEnv os))
-  , pmsTexture      :: !(TextureAtlas os)
-  , pmsMaterials    :: !MaterialTable
-  , pmsMatLookup    :: !(Texture2D os (Format RFloat))
-  , pmsNormalTex    :: !(Texture2DArray os (Format RGBAFloat))
-  , pmsShadow       :: !(DualParaboloidShadow os)
+  { pmsWindow        :: !(Window os RGBAFloat Depth)
+  , pmsMatrix        :: !(MultiShadowUniform os)
+  , pmsCamera        :: !(Camera Float)
+  , pmsMainShader    :: !(CompiledShader os (PhongAtlasEnvMultiShadow os))
+  , pmsToImageShader :: !(CompiledShader os (PhongAtlasEnvMultiShadowToImage os))
+    -- ^ Shader variant for rendering to off-screen images
+  , pmsShadowShader  :: !(CompiledShader os (DPShadowPassEnv os))
+  , pmsTexture       :: !(TextureAtlas os)
+  , pmsMaterials     :: !MaterialTable
+  , pmsMatLookup     :: !(Texture2D os (Format RFloat))
+  , pmsNormalTex     :: !(Texture2DArray os (Format RGBAFloat))
+  , pmsShadow        :: !(DualParaboloidShadow os)
   }
 
 -- | Multi-light shadow shader (supports up to 4 shadow-casting + 4 simple point lights)
@@ -988,6 +1018,67 @@ phongAtlasMultiShadowShader win uniform = do
       depthOption = DepthOption Less True
 
   drawWindowColorDepth (const (win, colorOption, depthOption)) litFragsWithDepth
+
+-- | Multi-light shadow shader variant that renders to off-screen images
+-- instead of a window. Used for post-processing pipelines.
+phongAtlasMultiShadowToImageShader
+  :: MultiShadowUniform os
+  -> Shader os (PhongAtlasEnvMultiShadowToImage os) ()
+phongAtlasMultiShadowToImageShader uniform = do
+  sides <- toPrimitiveStream multiShadowToImagePrimitives
+  (modelViewProj, modelMat, normMat, dirLightPacked, shadowPos0, shadowPos1,
+   (shadowPos2, shadowPos3, shadowCol0,
+    (shadowCol1, shadowCol2, shadowCol3,
+     (params,
+      simple0Pos, simple1Pos,
+      (simple2Pos, simple3Pos, simple0ColAndCount,
+       (simple1Col, simple2Col, simple3Col))))))
+    <- getUniform (const (uniform, 0))
+
+  -- Unpack parameters
+  let dirLightDir = dirLightPacked ^. _xyz
+      dirIntensity = dirLightPacked ^. _w
+      dirLightColorInt = V4 1 1 1 dirIntensity
+
+  let ambient = params ^. _x
+      numShadowLightsF = params ^. _y
+      shadowFarU = params ^. _z
+      shadowBiasU = params ^. _w
+
+  -- Number of simple lights is packed in w component of first simple light color
+  let numSimpleLightsF = simple0ColAndCount ^. _w
+
+  let projectedSides = projMultiShadowDP modelViewProj modelMat normMat
+                         dirLightDir dirLightColorInt
+                         shadowPos0 shadowPos1 shadowPos2 shadowPos3
+                         shadowCol0 shadowCol1 shadowCol2 shadowCol3
+                         simple0Pos simple1Pos simple2Pos simple3Pos
+                         simple0ColAndCount simple1Col simple2Col simple3Col
+                         ambient numShadowLightsF numSimpleLightsF shadowFarU shadowBiasU
+                         <$> sides
+
+  -- Create samplers
+  diffSampler <- newSampler2DArray multiShadowToImageDiffuseAtlas
+  normSampler <- newSampler2DArray multiShadowToImageNormalAtlas
+  matSampler <- newSampler2D multiShadowToImageMaterialLookup
+  shadowSampler <- newSampler2DArray multiShadowToImageDepthArray
+
+  fragData <- rasterize multiShadowToImageRasterOptions projectedSides
+
+  let litFrags = sampleAndLightDP diffSampler normSampler matSampler shadowSampler
+                   <$> fragData
+      -- Create (color, depth) tuples for drawDepth
+      -- Note: drawDepth expects (a, FragDepth) where 'a' is passed to the color callback
+      litFragsWithDepth = withRasterizedInfo
+          (\color rinfo -> (color, rasterizedFragCoord rinfo ^. _z)) litFrags
+      depthOption = DepthOption Less True
+      colorMask = V4 True True True True  -- Write all RGBA channels
+
+  -- Use drawDepth for proper depth testing, with color callback
+  drawDepth
+    (\env -> (NoBlending, multiShadowToImageDepthTarget env, depthOption))
+    litFragsWithDepth
+    (\colorVal -> drawColor (\env -> (multiShadowToImageColorTarget env, colorMask, False)) colorVal)
 
 -- | Vertex shader for 2-light shadows
 -- Uses nested pairs to avoid large tuples (GPipe FragmentFormat limitation)
@@ -1337,18 +1428,20 @@ newPhongAtlasMultiShadowContext win atlas materials camera shadowCfg = do
   -- Compile shaders
   shadowShader <- compileDPShadowShaders shadow
   mainShader <- compileShader $ phongAtlasMultiShadowShader win matBuffer
+  toImageShader <- compileShader $ phongAtlasMultiShadowToImageShader matBuffer
 
   pure PhongAtlasMultiShadowContext
-    { pmsWindow       = win
-    , pmsMatrix       = matBuffer
-    , pmsCamera       = camera
-    , pmsMainShader   = mainShader
-    , pmsShadowShader = shadowShader
-    , pmsTexture      = atlas
-    , pmsMaterials    = materials
-    , pmsMatLookup    = matLookupTex
-    , pmsNormalTex    = normalTex
-    , pmsShadow       = shadow
+    { pmsWindow        = win
+    , pmsMatrix        = matBuffer
+    , pmsCamera        = camera
+    , pmsMainShader    = mainShader
+    , pmsToImageShader = toImageShader
+    , pmsShadowShader  = shadowShader
+    , pmsTexture       = atlas
+    , pmsMaterials     = materials
+    , pmsMatLookup     = matLookupTex
+    , pmsNormalTex     = normalTex
+    , pmsShadow        = shadow
     }
 
 -- | Maximum shadow-casting lights for this implementation (dual paraboloid)
@@ -1491,3 +1584,150 @@ renderModelAtlasMultiShadow PhongAtlasMultiShadowContext{..} model transform lig
                                 )
       }
   swapWindowBuffers pmsWindow
+
+-- | Render model with multiple shadow-casting point lights to off-screen textures.
+-- This variant renders to provided color and depth textures instead of a window,
+-- enabling post-processing pipelines with proper depth testing.
+--
+-- The textures are cleared automatically before rendering.
+renderModelAtlasMultiShadowToImages
+  :: PhongAtlasMultiShadowContext os
+  -> (Texture2D os (Format RGBAFloat), Texture2D os (Format Depth))  -- ^ Target (color, depth) textures
+  -> V2 Int                           -- ^ Viewport size
+  -> SceneModelAtlas os               -- ^ Model to render
+  -> Transform Float                  -- ^ Model transformation
+  -> MultiLighting                    -- ^ Lighting configuration
+  -> SpiderCtx os ()
+renderModelAtlasMultiShadowToImages PhongAtlasMultiShadowContext{..} (colorTex, depthTex) viewportSize model transform lighting = do
+  let shadowLights = take maxMultiShadowLights (multiLightingShadowLights lighting)
+      simpleLights = take maxSimpleLights (multiLightingSimpleLights lighting)
+      lightPositions = map pointLightPosition shadowLights
+
+  -- Step 1: Render dual paraboloid shadow maps for active shadow lights (up to 4)
+  renderDPShadowMaps pmsShadow pmsShadowShader lightPositions transform model
+
+  -- Step 2: Render main scene to images
+  let V2 w h = viewportSize
+      newCam = pmsCamera { cameraAspect = fromIntegral w / fromIntegral h }
+      modelMat = transformMatrix transform
+      viewProjMat = cameraProjMat newCam !*! cameraViewMat newCam !*! modelMat
+      normMat = fromQuaternion (transformRotation transform)
+
+      -- Pack directional light
+      dirLightPacked = case multiLightingDirectional lighting of
+        Just dl -> let V3 dx dy dz = signorm (dirLightDirection dl)
+                   in V4 dx dy dz (dirLightIntensity dl)
+        Nothing -> V4 0 0 1 0
+
+      -- Pack light helper functions
+      packLight pl = let V3 px py pz = pointLightPosition pl
+                     in V4 px py pz (pointLightPower pl)
+      packColor pl = let V3 r g b = pointLightColor pl
+                     in V4 r g b 0
+      defaultLight = V4 0 0 0 0
+
+      -- Pack shadow lights (pos.xyz, power) - 4 lights for dual paraboloid
+      shadowPos0 = case shadowLights of
+        (l:_) -> packLight l
+        []    -> defaultLight
+      shadowPos1 = case drop 1 shadowLights of
+        (l:_) -> packLight l
+        []    -> defaultLight
+      shadowPos2 = case drop 2 shadowLights of
+        (l:_) -> packLight l
+        []    -> defaultLight
+      shadowPos3 = case drop 3 shadowLights of
+        (l:_) -> packLight l
+        []    -> defaultLight
+
+      -- Pack shadow light colors (color.rgb, unused)
+      shadowCol0 = case shadowLights of
+        (l:_) -> packColor l
+        []    -> defaultLight
+      shadowCol1 = case drop 1 shadowLights of
+        (l:_) -> packColor l
+        []    -> defaultLight
+      shadowCol2 = case drop 2 shadowLights of
+        (l:_) -> packColor l
+        []    -> defaultLight
+      shadowCol3 = case drop 3 shadowLights of
+        (l:_) -> packColor l
+        []    -> defaultLight
+
+      -- Pack simple light positions (pos.xyz, power)
+      simplePos0 = case simpleLights of
+        (l:_) -> packLight l
+        []    -> defaultLight
+      simplePos1 = case drop 1 simpleLights of
+        (l:_) -> packLight l
+        []    -> defaultLight
+      simplePos2 = case drop 2 simpleLights of
+        (l:_) -> packLight l
+        []    -> defaultLight
+      simplePos3 = case drop 3 simpleLights of
+        (l:_) -> packLight l
+        []    -> defaultLight
+
+      -- Pack simple light colors (color.rgb, numSimpleLights in first w)
+      numSimpleLights = fromIntegral (length simpleLights) :: Float
+      simpleCol0 = case simpleLights of
+        (l:_) -> let V3 r g b = pointLightColor l in V4 r g b numSimpleLights
+        []    -> V4 0 0 0 numSimpleLights  -- Still need numSimpleLights even if no lights
+      simpleCol1 = case drop 1 simpleLights of
+        (l:_) -> packColor l
+        []    -> defaultLight
+      simpleCol2 = case drop 2 simpleLights of
+        (l:_) -> packColor l
+        []    -> defaultLight
+      simpleCol3 = case drop 3 simpleLights of
+        (l:_) -> packColor l
+        []    -> defaultLight
+
+      ambient = multiLightingAmbient lighting
+      numShadowLightsVal = fromIntegral (length shadowLights) :: Float
+      cfg = dpShadowConfig pmsShadow
+      params = V4 ambient numShadowLightsVal (shadowFar cfg) (shadowBias cfg)
+
+      shadowSamplerFilter = SamplerFilter Nearest Nearest Nearest Nothing
+      shadowEdgeMode = (V2 ClampToEdge ClampToEdge, 1.0)
+
+  -- Write uniform buffer
+  writeBuffer pmsMatrix 0
+    [(viewProjMat, modelMat, normMat, dirLightPacked, shadowPos0, shadowPos1,
+      (shadowPos2, shadowPos3, shadowCol0,
+       (shadowCol1, shadowCol2, shadowCol3,
+        (params, simplePos0, simplePos1,
+         (simplePos2, simplePos3, simpleCol0,
+          (simpleCol1, simpleCol2, simpleCol3))))))]
+
+  render $ do
+    -- Get images from textures and clear them
+    colorImg <- getTexture2DImage colorTex 0
+    depthImg <- getTexture2DImage depthTex 0
+    clearImageColor colorImg 0
+    clearImageDepth depthImg 1
+
+    prims <- model
+
+    pmsToImageShader $ PhongAtlasEnvMultiShadowToImage
+      { multiShadowToImagePrimitives = prims
+      , multiShadowToImageRasterOptions = (FrontAndBack, ViewPort 0 viewportSize, DepthRange 0 1)
+      , multiShadowToImageDiffuseAtlas = ( atlasDiffuse pmsTexture
+                                         , SamplerFilter Nearest Nearest Nearest Nothing
+                                         , (V2 Repeat Repeat, V4 0 0 0 0)
+                                         )
+      , multiShadowToImageNormalAtlas = ( pmsNormalTex
+                                        , SamplerFilter Nearest Nearest Nearest Nothing
+                                        , (V2 Repeat Repeat, V4 0.5 0.5 1.0 1.0)
+                                        )
+      , multiShadowToImageMaterialLookup = ( pmsMatLookup
+                                           , SamplerFilter Nearest Nearest Nearest Nothing
+                                           , (V2 ClampToEdge ClampToEdge, 0)
+                                           )
+      , multiShadowToImageDepthArray = ( dpShadowArray pmsShadow
+                                       , shadowSamplerFilter
+                                       , shadowEdgeMode
+                                       )
+      , multiShadowToImageColorTarget = colorImg
+      , multiShadowToImageDepthTarget = depthImg
+      }
