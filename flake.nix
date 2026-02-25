@@ -33,6 +33,8 @@
             voxel-ui = final.callCabal2nix "voxel-ui" ./voxel-ui {};
             voxel-example-ui = final.callCabal2nix "voxel-example-ui" ./examples/ui {};
             voxel-gameloop = final.callCabal2nix "voxel-gameloop" ./examples/gameloop {};
+            voxel-atlas-demo = final.callCabal2nix "voxel-atlas-demo" ./examples/atlas-demo {};
+            voxel-pixel-art-demo = final.callCabal2nix "voxel-pixel-art-demo" ./examples/pixel-art-demo {};
 
             # Jailbreak packages with overly restrictive bounds for GHC 9.14
             assoc = pkgs.haskell.lib.doJailbreak prev.assoc;
@@ -272,6 +274,8 @@
           GPipe-GLFW = haskellPackages.GPipe-GLFW;
           gameloop = haskellPackages.voxel-gameloop;
           ui-example = haskellPackages.voxel-example-ui;
+          atlas-demo = haskellPackages.voxel-atlas-demo;
+          pixel-art-demo = haskellPackages.voxel-pixel-art-demo;
         };
 
         devShells.default = haskellPackages.shellFor {
@@ -285,6 +289,8 @@
             p.voxel-ui
             p.voxel-example-ui
             p.voxel-gameloop
+            p.voxel-atlas-demo
+            p.voxel-pixel-art-demo
             p.GPipe-GLFW
             p.MagicaVoxel-vox
           ];
