@@ -1,4 +1,7 @@
 -- | Demo of texture atlas rendering with grass and dirt materials
+-- Demonstrates:
+--   - 2 shadow-casting point lights (orange + blue) with different rotation speeds
+--   - 4 simple fill lights (no shadows): green, pulsing purple, cyan, bobbing yellow
 module Atlas.Demo(
     runDemo
 ) where
@@ -13,8 +16,8 @@ import Data.Voxel.Camera
 import Data.Voxel.Material
 import Data.Voxel.Scene
 import Data.Voxel.Shader.PhongAtlas
-  ( PhongAtlasShadowContext, newPhongAtlasShadowContext, renderModelAtlasShadow
-  , Lighting(..), PointLight(..), ShadowConfig(..), defaultShadowConfig
+  ( PhongAtlasMultiShadowContext, newPhongAtlasMultiShadowContext, renderModelAtlasMultiShadow
+  , MultiLighting(..), PointLight(..), ShadowConfig(..), defaultShadowConfig
   )
 import Data.Voxel.Texture.Atlas
 import Data.Voxel.Transform
@@ -129,16 +132,18 @@ runDemo = runAppHost $ do
     putStrLn $ "View matrix:\n" ++ show (cameraViewMat camera)
     putStrLn $ "Proj matrix:\n" ++ show (cameraProjMat camera)
 
-  -- Create rendering context with shadow support
+  -- Create rendering context with multi-light shadow support
   let shadowCfg = defaultShadowConfig
         { shadowResolution = 1024  -- Shadow map resolution per cube face
         , shadowFar = 50.0         -- Light range
-        , shadowBias = 0.0005      
+        , shadowBias = 0.0005
         }
-  ctx <- newPhongAtlasShadowContext win atlas materials camera shadowCfg
+  ctx <- newPhongAtlasMultiShadowContext win atlas materials camera shadowCfg
 
   liftIO $ putStrLn "Starting render loop..."
   liftIO $ putStrLn $ "Atlas has " ++ show (atlasLayers atlas) ++ " layers, size " ++ show (atlasSize atlas)
+  liftIO $ putStrLn "Shadow lights: warm orange (fast orbit) + cool blue (slow orbit)"
+  liftIO $ putStrLn "Fill lights: green (below), purple (pulsing), cyan, yellow (bobbing)"
 
   -- Run application
   runApp win $ demoApp ctx (V.head scene)
@@ -160,41 +165,84 @@ centeredTransform finalPos rotation scale = Transform
     rotatedCenter = rotate rotation center
     translation = finalPos - rotatedCenter
 
--- | Main application loop with rotating point light and shadows
+-- | Main application loop with shadow-casting and simple fill lights
 demoApp :: forall t m os . MonadApp t os m
-  => PhongAtlasShadowContext os
+  => PhongAtlasMultiShadowContext os
   -> SceneModelMaterial os
   -> m ()
 demoApp ctx model = do
-  -- Track light rotation angle
-  angleRef <- liftIO $ newIORef (0 :: Float)
+  -- Track time for light animation
+  timeRef <- liftIO $ newIORef (0 :: Float)
 
   -- Rendering loop
   setRenderer $ pure $ do
-    -- Update light angle
-    angle <- liftIO $ do
-      modifyIORef' angleRef (+ 0.005)
-      readIORef angleRef
+    -- Update time
+    time <- liftIO $ do
+      modifyIORef' timeRef (+ 0.005)  -- ~60fps timing
+      readIORef timeRef
 
     -- Static model transform (centered at origin)
     let scale = V3 1.5 1.5 1.5
         finalPos = V3 0 0 0
         transform = centeredTransform finalPos (axisAngle (V3 0 0 1) 0) scale
 
-    -- Rotating point light orbiting around the cubes
-    let orbitRadius = 2.0
-        lightX = orbitRadius * cos angle
-        lightY = orbitRadius * sin angle
-        lightZ = 2.5  -- Slightly above the cubes
-        pointLight = PointLight
-          { pointLightPosition = V3 lightX lightY lightZ
-          , pointLightColor    = V3 2.1 2 0.1  -- Warm white
-          , pointLightPower    = 10 -- Attenuation factor
-          }
-        lighting = Lighting
-          { lightingAmbient     = 0.001
-          , lightingDirectional = Nothing  -- No directional light (like a cave)
-          , lightingPoint       = Just pointLight
+    -- === Shadow-casting lights (2 max) ===
+
+    -- Shadow light 1: Warm orange, fast orbit
+    let angle1 = time * 1.5  -- Fast rotation
+        radius1 = 2.5
+        shadowLight1 = PointLight
+          { pointLightPosition = V3 (radius1 * cos angle1) (radius1 * sin angle1) 2.0
+          , pointLightColor    = V3 2.5 1.2 0.3  -- Warm orange
+          , pointLightPower    = 20
           }
 
-    renderModelAtlasShadow ctx model transform lighting
+    -- Shadow light 2: Cool blue, slow orbit (opposite direction)
+    let angle2 = time * 0.7  -- Slower rotation
+        radius2 = 3.0
+        shadowLight2 = PointLight
+          { pointLightPosition = V3 (radius2 * cos (-angle2)) (radius2 * sin (-angle2)) 1.5
+          , pointLightColor    = V3 0.4 0.8 2.5  -- Cool blue
+          , pointLightPower    = 20
+          }
+
+    -- === Simple fill lights (no shadows, 4 max) ===
+
+    -- Fill light 1: Soft green from below (like bioluminescence)
+    let fillLight1 = PointLight
+          { pointLightPosition = V3 0 0 (-1.5)  -- Below the scene
+          , pointLightColor    = V3 0.2 0.8 0.3  -- Green
+          , pointLightPower    = 15
+          }
+
+    -- Fill light 2: Soft purple, pulsing intensity
+    let pulse = 0.5 + 0.5 * sin (time * 3.0)  -- Pulsing 0-1
+        fillLight2 = PointLight
+          { pointLightPosition = V3 2.5 2.5 0.5
+          , pointLightColor    = V3 (0.6 * pulse) (0.2 * pulse) (0.8 * pulse)  -- Purple, pulsing
+          , pointLightPower    = 12
+          }
+
+    -- Fill light 3: Soft cyan accent
+    let fillLight3 = PointLight
+          { pointLightPosition = V3 (-2.5) 1.5 1.0
+          , pointLightColor    = V3 0.2 0.6 0.7  -- Cyan
+          , pointLightPower    = 18
+          }
+
+    -- Fill light 4: Warm yellow, bobbing up and down
+    let bob = sin (time * 2.0) * 0.5
+        fillLight4 = PointLight
+          { pointLightPosition = V3 0 (-2.5) (1.0 + bob)
+          , pointLightColor    = V3 0.8 0.7 0.2  -- Yellow
+          , pointLightPower    = 15
+          }
+
+    let lighting = MultiLighting
+          { multiLightingAmbient      = 0.005  -- Very slight ambient
+          , multiLightingDirectional  = Nothing  -- No directional light (cave scene)
+          , multiLightingShadowLights = [shadowLight1, shadowLight2]
+          , multiLightingSimpleLights = [fillLight1, fillLight2, fillLight3, fillLight4]
+          }
+
+    renderModelAtlasMultiShadow ctx model transform lighting

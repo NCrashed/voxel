@@ -5,12 +5,15 @@
 -- within GPipe fragment shaders. It supports both hard shadows (crisp
 -- pixel art style) and soft shadows (PCF filtering).
 module Data.Voxel.Shadow.Sample(
-    -- * Hard shadow sampling
+    -- * Hard shadow sampling (single light, 6 samplers)
     samplePointShadow
     -- * Slope-scaled shadow sampling
   , samplePointShadowSlope
     -- * Soft shadow sampling (PCF)
   , samplePointShadowPCF
+    -- * Multi-light shadow sampling (texture array)
+  , samplePointShadowArray
+  , sampleMultiPointShadows
     -- * Cube face utilities
   , cubeFaceFromDirection
   , sampleShadowFace
@@ -250,3 +253,74 @@ samplePointShadowPCF s0 s1 s2 s3 s4 s5 worldPos lightPos far bias softness =
 
       -- Average the results
   in (lit00 + lit10 + lit01 + lit11) * 0.25
+
+--------------------------------------------------------------------------------
+-- Multi-light shadow sampling (texture array)
+--------------------------------------------------------------------------------
+
+-- | Sample point shadow from a texture array.
+--
+-- The texture array contains shadow maps for multiple lights.
+-- Layer index = lightIndex * 6 + faceIndex
+--
+-- Returns shadow factor where 0 = fully in shadow, 1 = fully lit.
+samplePointShadowArray
+  :: Sampler2DArray (Format Depth)  -- ^ Shadow map texture array
+  -> FFloat                         -- ^ Light index as float (0-3)
+  -> V3 FFloat                      -- ^ Fragment world position
+  -> V3 FFloat                      -- ^ Light position
+  -> FFloat                         -- ^ Far plane distance
+  -> FFloat                         -- ^ Depth bias
+  -> FFloat                         -- ^ Shadow factor (0 = shadow, 1 = lit)
+samplePointShadowArray shadowArray lightIdxF worldPos lightPos far bias =
+  let -- Vector from light to fragment
+      fragToLight = worldPos - lightPos
+      dist = norm fragToLight
+
+      -- Get cube face and UV from direction
+      (faceIdxF, V2 u v) = cubeFaceFromDirection fragToLight
+
+      -- Compute layer index: lightIndex * 6 + faceIndex (all floats)
+      -- faceIdxF is 0,1,2,3,4,5 and lightIdxF is 0,1,2,3
+      layerF = lightIdxF * 6 + faceIdxF
+
+      -- Sample from texture array
+      -- Note: sample2DArray takes V3 with z being the layer (as float)
+      storedDepth = sample2DArray shadowArray SampleAuto Nothing (V3 u v layerF)
+
+      -- Normalize distance to [0,1] range for depth comparison
+      currentDepth = dist / far
+
+      -- Compare with bias
+  in ifThenElse' (currentDepth - bias <* storedDepth) 1.0 0.0
+
+-- | Sample shadows from multiple point lights using texture array.
+--
+-- Returns a V4 of shadow factors, one for each of up to 4 lights.
+-- Lights beyond the active count return 1.0 (fully lit / no shadow).
+--
+-- This is the main function to use for multi-light shadow sampling.
+sampleMultiPointShadows
+  :: Sampler2DArray (Format Depth)  -- ^ Shadow map texture array
+  -> FFloat                         -- ^ Number of active shadow lights (0-4) as float
+  -> V3 FFloat                      -- ^ Fragment world position
+  -> V4 (V3 FFloat)                 -- ^ Light positions (4 lights, unused ones can be zero)
+  -> FFloat                         -- ^ Far plane distance
+  -> FFloat                         -- ^ Depth bias
+  -> V4 FFloat                      -- ^ Shadow factors for each light (0 = shadow, 1 = lit)
+sampleMultiPointShadows shadowArray numLightsF worldPos lightPositions far bias =
+  let V4 pos0 pos1 pos2 pos3 = lightPositions
+
+      -- Sample each light's shadow (light indices as floats: 0, 1, 2, 3)
+      shadow0 = samplePointShadowArray shadowArray 0 worldPos pos0 far bias
+      shadow1 = samplePointShadowArray shadowArray 1 worldPos pos1 far bias
+      shadow2 = samplePointShadowArray shadowArray 2 worldPos pos2 far bias
+      shadow3 = samplePointShadowArray shadowArray 3 worldPos pos3 far bias
+
+      -- Mask out inactive lights (return 1.0 = fully lit for inactive)
+      s0 = ifThenElse' (numLightsF >* 0.5) shadow0 1.0
+      s1 = ifThenElse' (numLightsF >* 1.5) shadow1 1.0
+      s2 = ifThenElse' (numLightsF >* 2.5) shadow2 1.0
+      s3 = ifThenElse' (numLightsF >* 3.5) shadow3 1.0
+
+  in V4 s0 s1 s2 s3

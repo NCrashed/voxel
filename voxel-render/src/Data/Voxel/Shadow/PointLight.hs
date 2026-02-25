@@ -3,15 +3,23 @@
 --
 -- This module provides cube shadow maps for point lights, allowing
 -- shadows to be cast in all directions from a point light source.
--- The shadow map consists of 6 depth textures rendered from the
--- light's perspective.
+--
+-- Two modes are supported:
+-- 1. Single light: 6 separate depth textures (legacy)
+-- 2. Multi-light: Single texture array with layers for all lights (recommended)
 module Data.Voxel.Shadow.PointLight(
     -- * Configuration
     ShadowConfig(..)
   , defaultShadowConfig
-    -- * Shadow map container
+    -- * Single light shadow map (legacy)
   , PointLightShadow(..)
   , newPointLightShadow
+    -- * Multi-light shadow map (texture array)
+  , MultiPointLightShadow(..)
+  , maxShadowLights
+  , newMultiPointLightShadow
+  , renderMultiShadowCubes
+  , compileMultiShadowShaders
     -- * Light-space matrices
   , CubeFace(..)
   , allCubeFaces
@@ -19,7 +27,9 @@ module Data.Voxel.Shadow.PointLight(
   , lightProjection
     -- * Shadow pass shader
   , ShadowPassEnv(..)
+  , ShadowPassEnvArray(..)
   , shadowPassShader
+  , shadowPassShaderArray
   , renderShadowCube
   , compileShadowShaders
   ) where
@@ -249,3 +259,130 @@ compileShadowShaders
   -> SpiderCtx os (CompiledShader os (ShadowPassEnv os))
 compileShadowShaders shadow =
   compileShader $ shadowPassShader (shadowUniform shadow)
+
+--------------------------------------------------------------------------------
+-- Multi-light shadow map support (texture array)
+--------------------------------------------------------------------------------
+
+-- | Maximum number of shadow-casting point lights
+-- Each light needs 6 cube faces, so 2 lights = 12 texture layers
+-- NOTE: Limited to 2 due to GPipe FragmentFormat constraints with complex tuple types
+maxShadowLights :: Int
+maxShadowLights = 2
+
+-- | Container for multiple point light shadow maps using a texture array
+-- All shadow maps are stored in a single 2D texture array for efficient sampling.
+-- Layer index = lightIndex * 6 + faceIndex
+data MultiPointLightShadow os = MultiPointLightShadow
+  { multiShadowArray   :: !(Texture2DArray os (Format Depth))
+    -- ^ Texture array with layers for all lights (maxLights * 6 layers)
+  , multiShadowConfig  :: !ShadowConfig
+    -- ^ Shadow configuration (shared by all lights)
+  , multiShadowUniform :: !(ShadowUniform os)
+    -- ^ Buffer for shadow pass uniforms (reused for each face)
+  }
+
+-- | Create shadow map resources for multiple point lights
+newMultiPointLightShadow :: ShadowConfig -> SpiderCtx os (MultiPointLightShadow os)
+newMultiPointLightShadow cfg = do
+  let res = shadowResolution cfg
+      numLayers = maxShadowLights * 6  -- 2 lights × 6 faces = 12 layers
+
+  -- Create texture array for all shadow maps
+  -- Using Depth32 for precision
+  shadowArray <- newTexture2DArray Depth32 (V3 res res numLayers) 1
+
+  -- Create uniform buffer for shadow pass
+  uniform <- newBuffer 1
+
+  pure MultiPointLightShadow
+    { multiShadowArray   = shadowArray
+    , multiShadowConfig  = cfg
+    , multiShadowUniform = uniform
+    }
+
+-- | Environment for shadow pass rendering to texture array
+data ShadowPassEnvArray os = ShadowPassEnvArray
+  { shadowArrayPrimitives :: PrimitiveArray Triangles (MeshArray (ArrayOf Int32))
+    -- ^ Mesh primitives to render
+  , shadowArrayRasterOpts :: (Side, ViewPort, DepthRange)
+    -- ^ Rasterization options
+  , shadowArrayDepthImage :: Image (Format Depth)
+    -- ^ Target depth image (specific layer of array)
+  }
+
+-- | Depth-only shader for shadow pass rendering to texture array
+shadowPassShaderArray
+  :: ShadowUniform os
+  -> Shader os (ShadowPassEnvArray os) ()
+shadowPassShaderArray uniform = do
+  sides <- toPrimitiveStream shadowArrayPrimitives
+  (lightViewProj, modelMat, lightPos, far) <- getUniform (const (uniform, 0))
+
+  let projectedSides = shadowProj lightViewProj modelMat lightPos far <$> sides
+
+  fragData <- rasterize shadowArrayRasterOpts projectedSides
+
+  let fragWithDepth = shadowFrag <$> fragData
+      depthOption = DepthOption Less True
+
+  drawDepth (\env -> (NoBlending, shadowArrayDepthImage env, depthOption))
+            fragWithDepth
+            (\_ -> pure ())
+
+-- | Render shadow maps for multiple point lights
+--
+-- Each light's 6 cube faces are rendered to consecutive layers in the texture array.
+-- Layer index = lightIndex * 6 + faceIndex
+renderMultiShadowCubes
+  :: MultiPointLightShadow os
+     -- ^ Shadow map resources
+  -> CompiledShader os (ShadowPassEnvArray os)
+     -- ^ Compiled shadow pass shader
+  -> [(V3 Float)]
+     -- ^ List of light positions (up to maxShadowLights)
+  -> Transform Float
+     -- ^ Model transformation
+  -> Render os (PrimitiveArray Triangles (MeshArray (ArrayOf Int32)))
+     -- ^ Primitive stream to render
+  -> SpiderCtx os ()
+renderMultiShadowCubes shadow shader lightPositions modelTransform primStream = do
+  let cfg = multiShadowConfig shadow
+      res = shadowResolution cfg
+      near = shadowNear cfg
+      far = shadowFar cfg
+      proj = lightProjection near far
+      modelMat = transformMatrix modelTransform
+      -- Limit to max lights
+      lights = take maxShadowLights lightPositions
+
+  -- Render each light's shadow cube
+  forM_ (zip [0..] lights) $ \(lightIdx, lightPos) -> do
+    -- Render each face of this light's cube
+    forM_ (zip allCubeFaces [0..5]) $ \(face, faceIdx) -> do
+      let viewMat = cubeFaceView lightPos face
+          lightViewProj = proj !*! viewMat !*! modelMat
+          -- Layer in texture array
+          layerIdx = lightIdx * 6 + faceIdx
+
+      -- Write uniforms
+      writeBuffer (multiShadowUniform shadow) 0 [(lightViewProj, modelMat, lightPos, far)]
+
+      -- Render this face to the appropriate layer
+      render $ do
+        depthImg <- getTexture2DArrayImage (multiShadowArray shadow) 0 layerIdx
+        clearImageDepth depthImg 1.0
+
+        prims <- primStream
+        shader $ ShadowPassEnvArray
+          { shadowArrayPrimitives = prims
+          , shadowArrayRasterOpts = (FrontAndBack, ViewPort 0 (V2 res res), DepthRange 0 1)
+          , shadowArrayDepthImage = depthImg
+          }
+
+-- | Compile shadow pass shader for texture array
+compileMultiShadowShaders
+  :: MultiPointLightShadow os
+  -> SpiderCtx os (CompiledShader os (ShadowPassEnvArray os))
+compileMultiShadowShaders shadow =
+  compileShader $ shadowPassShaderArray (multiShadowUniform shadow)
