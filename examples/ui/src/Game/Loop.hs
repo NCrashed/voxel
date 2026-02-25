@@ -37,13 +37,13 @@ runGame = runAppHost $ do
 --
 -- The second part is rendering loop that samples the FRP 
 -- network to render and update state of the game.
-viewerApp :: forall t m os . MonadApp t os m 
+viewerApp :: forall t m os . MonadApp t os m
   => FlatContext os
   -> LoadedRects os
   -> m ()
-viewerApp ctx rect = do 
+viewerApp ctx rect = do
   -- Setup FRP network
-
+  bindEscapeToClose
 
   -- Rendering loop
   setRenderer $ pure $ do

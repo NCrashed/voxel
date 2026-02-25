@@ -20,7 +20,7 @@ import Control.Monad.STM (atomically)
 import Control.Monad.Trans.Class (lift)
 import Data.Dependent.Sum (DSum ((:=>)))
 import Data.IORef (IORef, readIORef, modifyIORef')
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Data.Voxel.App.Class
 import Data.Voxel.App.Base
 import Data.Voxel.TriggerEvent
@@ -120,14 +120,15 @@ runApp win app = do
     forM_ mPostBuildTrigger $ \postBuildTrigger ->
       fire [postBuildTrigger :=> Identity ()] $ return ()
 
-    -- Subscribe to an 'Event' of that the guest application can use to
-    -- request application shutdown. We'll check whether this 'Event' is firing
+    -- Subscribe to events that the guest application can use to
+    -- request application shutdown. We'll check whether these events fire
     -- to determine whether to terminate.
     shutdown <- subscribeEvent $ _GPipeEnv_shutdown env
-    
+    windowClose <- subscribeEvent $ _GPipeEnv_windowClose env
+
     -- The main application loop. We wait for new events, fire those that
     -- have subscribers, and update the display. If we detect a shutdown
-    -- request, the application terminates.
+    -- request or window close, the application terminates.
     fix $ \loop -> do
       -- Fire the frame event before processing other events
       currentFrame <- liftIO $ readIORef $ _GPipeEnv_frame env
@@ -137,11 +138,11 @@ runApp win app = do
       ers <- liftIO . atomically $ tryReadTChan events
       stop <- do
         -- Fire events that have subscribers.
-        fireEventTriggerRefs fc (fromMaybe [] ers) $
-          -- Check if the shutdown 'Event' is firing.
-          readEvent shutdown >>= \case
-            Nothing -> return False
-            Just _ -> return True
+        fireEventTriggerRefs fc (fromMaybe [] ers) $ do
+          -- Check if the shutdown or window close events are firing.
+          shutdownFired <- readEvent shutdown
+          windowCloseFired <- readEvent windowClose
+          return $ isJust shutdownFired || isJust windowCloseFired
       if or stop then pure ()
         else do  -- Otherwise, update the display and loop.
           renderBehavior <- liftIO $ readIORef $ _GPipeEnv_render env

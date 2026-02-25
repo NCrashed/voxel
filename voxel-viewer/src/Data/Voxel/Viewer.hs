@@ -41,11 +41,12 @@ runViewer = runAppHost $ do
     ctx <- newPhongContext win camera
     runApp win $ viewerApp ctx scene
 
-viewerApp :: forall t m os . MonadApp t os m 
+viewerApp :: forall t m os . MonadApp t os m
   => PhongContext os
   -> Vector (SceneModel os)
   -> m ()
-viewerApp ctx scene = do 
+viewerApp ctx scene = do
+  bindEscapeToClose
   frameB <- frameCounter
   let angBeh = do 
         frame <- frameB

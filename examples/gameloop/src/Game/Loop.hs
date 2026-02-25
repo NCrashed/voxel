@@ -48,12 +48,13 @@ runGame = runAppHost $ do
 --
 -- The second part is rendering loop that samples the FRP 
 -- network to render and update state of the game.
-viewerApp :: forall t m os . MonadApp t os m 
+viewerApp :: forall t m os . MonadApp t os m
   => PhongContext os
   -> SceneModel os
   -> m ()
-viewerApp ctx player = do 
+viewerApp ctx player = do
   -- Setup FRP network
+  bindEscapeToClose
   moveD <- playerMove 
   posRef <- liftIO $ newIORef mempty
   -- Some demo printing of input 

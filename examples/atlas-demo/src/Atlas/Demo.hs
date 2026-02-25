@@ -171,6 +171,7 @@ demoApp :: forall t m os . MonadApp t os m
   -> SceneModelMaterial os
   -> m ()
 demoApp ctx model = do
+  bindEscapeToClose
   -- Track time for light animation
   timeRef <- liftIO $ newIORef (0 :: Float)
 

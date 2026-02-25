@@ -32,6 +32,10 @@ data GPipeEnv t os = GPipeEnv {
     _GPipeEnv_shutdown     :: Event t ()
   -- | Action that triggers previous event
   , _GPipeEnv_shutdownFire :: IO ()
+  -- | Event that fires when window close is requested (X button)
+  , _GPipeEnv_windowClose     :: Event t ()
+  -- | Fire command for window close event
+  , _GPipeEnv_windowCloseFire :: IO ()
   -- | Render function that is called each frame
   , _GPipeEnv_render       :: IORef (Behavior t (Renderer os))
   -- | Frame counter that updated after each draw
@@ -59,6 +63,7 @@ data GPipeEnv t os = GPipeEnv {
 newGPipeEnv :: (Reflex t, MonadIO m, TriggerEvent t m) => m (GPipeEnv t os)
 newGPipeEnv = do
   (shutEv, shutdownFire) <- newTriggerEvent
+  (windowCloseEv, windowCloseFire) <- newTriggerEvent
   (keyEv, keyFire) <- newTriggerEvent
   (frameEv, frameFire) <- newTriggerEvent
   rendererRef <- liftIO $ newIORef $ pure $ pure ()
@@ -69,6 +74,8 @@ newGPipeEnv = do
   pure GPipeEnv {
       _GPipeEnv_shutdown = shutEv
     , _GPipeEnv_shutdownFire = shutdownFire ()
+    , _GPipeEnv_windowClose = windowCloseEv
+    , _GPipeEnv_windowCloseFire = windowCloseFire ()
     , _GPipeEnv_render = rendererRef
     , _GPipeEnv_frame = frameRef
     , _GPipeEnv_frameEvent = frameEv
@@ -84,15 +91,16 @@ newGPipeEnv = do
 
 -- | That should be called after 'newGPipeEnv' when FRP network is set.
 bindEnvCallbacks :: MonadIO m => Window os c ds -> GPipeEnv t os -> ContextT GLFW.Handle os m ()
-bindEnvCallbacks win GPipeEnv{..} = do 
-  void $ GLFW.setKeyCallback win $ Just $ \key scan state mods -> 
-    _GPipeEnv_keyFire $! KeyEvent key scan state mods 
-  void $ GLFW.setCursorPosCallback win $ Just $ \x y -> 
-    writeIORef _GPipeEnv_mousePos $! V2 x y 
-  void $ GLFW.setMouseButtonCallback win $ Just $ \button state mods -> 
+bindEnvCallbacks win GPipeEnv{..} = do
+  void $ GLFW.setKeyCallback win $ Just $ \key scan state mods ->
+    _GPipeEnv_keyFire $! KeyEvent key scan state mods
+  void $ GLFW.setCursorPosCallback win $ Just $ \x y ->
+    writeIORef _GPipeEnv_mousePos $! V2 x y
+  void $ GLFW.setMouseButtonCallback win $ Just $ \button state mods ->
     _GPipeEnv_mouseFire $! MouseEvent button state mods
-  void $ GLFW.setScrollCallback win $ Just $ \x y -> 
+  void $ GLFW.setScrollCallback win $ Just $ \x y ->
     _GPipeEnv_scrollFire $! V2 x y
+  void $ GLFW.setWindowCloseCallback win $ Just _GPipeEnv_windowCloseFire
 
 -- | Basic implementation of 'MonadGPipe'
 newtype GPipeT t os m a = GPipeT { unGPipeT :: ReaderT (GPipeEnv t os) m a }
@@ -110,6 +118,9 @@ instance (PerformEvent t m, MonadHold t m, MonadIO (Performable m), MonadIO m, M
 
   {-# INLINE shutdownEvent #-}
   shutdownEvent = GPipeT $ asks _GPipeEnv_shutdown
+
+  {-# INLINE windowCloseEvent #-}
+  windowCloseEvent = GPipeT $ asks _GPipeEnv_windowClose
 
   {-# INLINABLE setRenderer #-}
   setRenderer r = do

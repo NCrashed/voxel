@@ -7,12 +7,15 @@ module Data.Voxel.App.Class(
   -- * Input helpers
   , keyPressed
   , keyDown
-  -- * Reexports 
+  -- * Window helpers
+  , bindEscapeToClose
+  -- * Reexports
   , Key(..), KeyState(..), ModifierKeys(..)
   , MouseButton(..), MouseButtonState(..)
   ) where 
 
-import Data.Word 
+import Control.Monad (void)
+import Data.Word
 import GHC.Generics (Generic)
 import Graphics.GPipe
 import Graphics.GPipe.Context.GLFW (Key(..), KeyState(..), ModifierKeys(..), MouseButton(..), MouseButtonState(..))
@@ -42,13 +45,15 @@ data MouseEvent = MouseEvent {
 , _mouseEvent_mods   :: !ModifierKeys
 } deriving (Show, Eq, Generic)
 
--- | API for GPipe renderer that are acceptable 
+-- | API for GPipe renderer that are acceptable
 -- inside FRP network.
 class (Reflex t, Monad m) => MonadGPipe t os m | m -> t, m -> os where
   -- | Set shutdown event to indicate exit of the app.
   setShutdownEvent :: Event t () -> m ()
   -- | Get shutdown event
   shutdownEvent :: m (Event t ())
+  -- | Get event that fires when window close is requested (X button clicked)
+  windowCloseEvent :: m (Event t ())
   -- | Set current renderer
   setRenderer :: Behavior t (Renderer os) -> m ()
   -- | Get counter with frames rendered
@@ -57,7 +62,7 @@ class (Reflex t, Monad m) => MonadGPipe t os m | m -> t, m -> os where
   keyInput :: m (Event t KeyEvent)
   -- | Get current mouse position
   mousePosition :: m (Behavior t (V2 Double))
-  -- | Get event for mouse buttons 
+  -- | Get event for mouse buttons
   mouseEvent :: m (Event t MouseEvent)
   -- | Get event for mouse scrolling
   mouseScroll :: m (Event t (V2 Double))
@@ -71,9 +76,16 @@ keyPressed k = do
 
 -- | Get dynamic that indicates whether the key is pressed right now
 keyDown :: (MonadHold t m, MonadGPipe t os m) => Key -> m (Dynamic t Bool)
-keyDown k = do 
-  e <- keyInput 
+keyDown k = do
+  e <- keyInput
   let expected KeyEvent{..} = _keyEvent_key == k
   let downE = ffor (ffilter expected e) $ \KeyEvent{..} ->
         _keyEvent_state == KeyState'Pressed || _keyEvent_state == KeyState'Repeating
-  holdDyn False downE 
+  holdDyn False downE
+
+-- | Wire Escape key press to trigger application shutdown.
+-- Call this in your app to enable closing the window with Escape.
+bindEscapeToClose :: (MonadHold t m, MonadGPipe t os m) => m ()
+bindEscapeToClose = do
+  escE <- keyPressed Key'Escape
+  setShutdownEvent $ void escE
