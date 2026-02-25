@@ -28,6 +28,7 @@ library
     Data.Voxel.Camera
     Data.Voxel.Material
     Data.Voxel.PostProcess.Blit
+    Data.Voxel.PostProcess.ColorQuantize
     Data.Voxel.PostProcess.PixelArt
     Data.Voxel.Rect
     Data.Voxel.Rect.Buffer
