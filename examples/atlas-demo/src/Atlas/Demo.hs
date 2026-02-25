@@ -1,7 +1,7 @@
 -- | Demo of texture atlas rendering with grass and dirt materials
 -- Demonstrates:
---   - 2 shadow-casting point lights (orange + blue) with different rotation speeds
---   - 4 simple fill lights (no shadows): green, pulsing purple, cyan, bobbing yellow
+--   - 4 shadow-casting point lights using dual paraboloid shadows
+--   - 2 simple fill lights (no shadows) for accent lighting
 module Atlas.Demo(
     runDemo
 ) where
@@ -142,8 +142,8 @@ runDemo = runAppHost $ do
 
   liftIO $ putStrLn "Starting render loop..."
   liftIO $ putStrLn $ "Atlas has " ++ show (atlasLayers atlas) ++ " layers, size " ++ show (atlasSize atlas)
-  liftIO $ putStrLn "Shadow lights: warm orange (fast orbit) + cool blue (slow orbit)"
-  liftIO $ putStrLn "Fill lights: green (below), purple (pulsing), cyan, yellow (bobbing)"
+  liftIO $ putStrLn "Shadow lights: 4 dual paraboloid shadow-casting lights"
+  liftIO $ putStrLn "Fill lights: green (below), pulsing purple"
 
   -- Run application
   runApp win $ demoApp ctx (V.head scene)
@@ -165,7 +165,7 @@ centeredTransform finalPos rotation scale = Transform
     rotatedCenter = rotate rotation center
     translation = finalPos - rotatedCenter
 
--- | Main application loop with shadow-casting and simple fill lights
+-- | Main application loop with 4 shadow-casting lights (dual paraboloid) + 2 fill lights
 demoApp :: forall t m os . MonadApp t os m
   => PhongAtlasMultiShadowContext os
   -> SceneModelMaterial os
@@ -186,7 +186,7 @@ demoApp ctx model = do
         finalPos = V3 0 0 0
         transform = centeredTransform finalPos (axisAngle (V3 0 0 1) 0) scale
 
-    -- === Shadow-casting lights (2 max) ===
+    -- === Shadow-casting lights (4 max with dual paraboloid) ===
 
     -- Shadow light 1: Warm orange, fast orbit
     let angle1 = time * 1.5  -- Fast rotation
@@ -206,7 +206,25 @@ demoApp ctx model = do
           , pointLightPower    = 20
           }
 
-    -- === Simple fill lights (no shadows, 4 max) ===
+    -- Shadow light 3: Soft cyan, medium orbit
+    let angle3 = time * 1.0  -- Medium rotation
+        radius3 = 2.8
+        shadowLight3 = PointLight
+          { pointLightPosition = V3 (radius3 * sin angle3) 2.0 (radius3 * cos angle3)
+          , pointLightColor    = V3 0.3 0.9 1.0  -- Cyan
+          , pointLightPower    = 18
+          }
+
+    -- Shadow light 4: Warm yellow, bobbing up and down
+    let bob = sin (time * 2.0) * 0.5
+        angle4 = time * 0.5  -- Very slow rotation
+        shadowLight4 = PointLight
+          { pointLightPosition = V3 (2.0 * cos angle4) (2.0 * sin angle4) (1.0 + bob)
+          , pointLightColor    = V3 1.0 0.9 0.4  -- Yellow
+          , pointLightPower    = 16
+          }
+
+    -- === Simple fill lights (no shadows, 2 for accent) ===
 
     -- Fill light 1: Soft green from below (like bioluminescence)
     let fillLight1 = PointLight
@@ -223,26 +241,11 @@ demoApp ctx model = do
           , pointLightPower    = 12
           }
 
-    -- Fill light 3: Soft cyan accent
-    let fillLight3 = PointLight
-          { pointLightPosition = V3 (-2.5) 1.5 1.0
-          , pointLightColor    = V3 0.2 0.6 0.7  -- Cyan
-          , pointLightPower    = 18
-          }
-
-    -- Fill light 4: Warm yellow, bobbing up and down
-    let bob = sin (time * 2.0) * 0.5
-        fillLight4 = PointLight
-          { pointLightPosition = V3 0 (-2.5) (1.0 + bob)
-          , pointLightColor    = V3 0.8 0.7 0.2  -- Yellow
-          , pointLightPower    = 15
-          }
-
     let lighting = MultiLighting
           { multiLightingAmbient      = 0.005  -- Very slight ambient
           , multiLightingDirectional  = Nothing  -- No directional light (cave scene)
-          , multiLightingShadowLights = [shadowLight1, shadowLight2]
-          , multiLightingSimpleLights = [fillLight1, fillLight2, fillLight3, fillLight4]
+          , multiLightingShadowLights = [shadowLight1, shadowLight2, shadowLight3, shadowLight4]
+          , multiLightingSimpleLights = [fillLight1, fillLight2]
           }
 
     renderModelAtlasMultiShadow ctx model transform lighting
