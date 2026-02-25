@@ -1,13 +1,21 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 -- | Phong shader with texture atlas support using 2D texture arrays
 module Data.Voxel.Shader.PhongAtlas(
+    -- * Basic shader (no shadows)
     PhongAtlasEnv(..)
   , PhongAtlasUniform
   , phongAtlasShader
   , PhongAtlasContext(..)
   , newPhongAtlasContext
   , renderModelAtlas
+    -- * Shadow-enabled shader
+  , PhongAtlasEnvShadow(..)
+  , PhongAtlasShadowContext(..)
+  , newPhongAtlasShadowContext
+  , renderModelAtlasShadow
+    -- * Scene models
   , SceneModelAtlas
+    -- * Lighting configuration
   , DirectionalLight(..)
   , PointLight(..)
   , Lighting(..)
@@ -15,6 +23,9 @@ module Data.Voxel.Shader.PhongAtlas(
   , ambientOnly
   , directionalOnly
   , pointOnly
+    -- * Shadow configuration (re-exported)
+  , ShadowConfig(..)
+  , defaultShadowConfig
   ) where
 
 import Control.Lens ((^.))
@@ -23,6 +34,8 @@ import Data.Voxel.App
 import Data.Voxel.Camera
 import Data.Voxel.GPipe.Mesh
 import Data.Voxel.Material
+import Data.Voxel.Shadow.PointLight
+import Data.Voxel.Shadow.Sample
 import Data.Voxel.Texture.Atlas
 import Data.Voxel.Transform
 import Data.Int
@@ -56,17 +69,17 @@ data PhongAtlasEnv os = PhongAtlasEnv
     -- Pixel value = texture layer index
   }
 
--- | Uniform buffer for MVP matrix, normal matrix, and lighting
--- Contains: (MVP matrix, Normal matrix, (DirLight direction, DirLight color+intensity),
---            (PointLight position, PointLight color+power), ambient)
+-- | Uniform buffer for MVP matrix, model matrix, normal matrix, and lighting
+-- Contains matrices and light parameters needed for rendering.
+-- Note: Uses 7-tuple which is the max GPipe supports directly.
 type PhongAtlasUniform os = Buffer os (Uniform
-  ( V4 (B4 Float)  -- MVP matrix
+  ( V4 (B4 Float)  -- MVP matrix (model-view-projection)
+  , V4 (B4 Float)  -- Model matrix (for world position computation)
   , V3 (B3 Float)  -- Normal matrix
-  , B3 Float       -- Directional light direction
-  , B4 Float       -- Directional light color (RGB) + intensity (A)
-  , B3 Float       -- Point light position
-  , B4 Float       -- Point light color (RGB) + power/attenuation (A)
-  , B Float        -- Ambient intensity
+  , B4 Float       -- Directional light: (direction.xyz, intensity)
+  , B4 Float       -- Point light position + ambient: (pos.xyz, ambient)
+  , B4 Float       -- Point light color + power: (color.rgb, power)
+  , B3 Float       -- Shadow params: (far, bias, unused)
   ))
 
 -- | Directional light configuration
@@ -117,10 +130,17 @@ phongAtlasShader
   -> Shader os (PhongAtlasEnv os) ()
 phongAtlasShader win uniform = do
   sides <- toPrimitiveStream primitives
-  (modelViewProj, normMat, dirLightDir, dirLightColorInt, pointLightPos, pointLightColorPow, ambient)
+  (modelViewProj, modelMat, normMat, dirLightPacked, pointLightPosPacked, pointLightColorPow, _shadowParams)
     <- getUniform (const (uniform, 0))
+  -- Unpack directional light (xyz = direction, w = intensity)
+  let dirLightDir = dirLightPacked ^. _xyz
+      dirIntensity = dirLightPacked ^. _w
+      dirLightColorInt = V4 1 1 1 dirIntensity  -- White directional light
+  -- Unpack point light (position.xyz, ambient in w)
+  let pointLightPos = pointLightPosPacked ^. _xyz
+      ambient = pointLightPosPacked ^. _w
   -- Pass light params through vertex shader as Flat values
-  let projectedSides = proj modelViewProj normMat
+  let projectedSides = proj modelViewProj modelMat normMat
                          dirLightDir dirLightColorInt pointLightPos pointLightColorPow ambient
                          <$> sides
 
@@ -143,6 +163,7 @@ phongAtlasShader win uniform = do
 -- | Project vertex to clip space, passing light params as Flat values
 -- Uses nested tuples to stay within GPipe's tuple size limits
 proj :: V4 (V4 VFloat)      -- ^ Model-view-projection matrix
+     -> V4 (V4 VFloat)      -- ^ Model matrix (for world position)
      -> V3 (V3 VFloat)      -- ^ Normal matrix
      -> V3 VFloat           -- ^ Directional light direction
      -> V4 VFloat           -- ^ Directional light color + intensity
@@ -152,13 +173,15 @@ proj :: V4 (V4 VFloat)      -- ^ Model-view-projection matrix
      -> MeshVertex VInt
      -> (V4 VFloat, ((V3 FlatVFloat, V2 VFloat, VFloat, V3 VFloat),
                      (V3 FlatVFloat, V4 FlatVFloat, V3 FlatVFloat, V4 FlatVFloat, FlatVFloat)))
-proj modelViewProj normMat dirLightDir dirLightColorInt pointLightPos pointLightColorPow ambient MeshVertex{..} =
+proj modelViewProj modelMat normMat dirLightDir dirLightColorInt pointLightPos pointLightColorPow ambient MeshVertex{..} =
   let V3 px py pz = meshPrimPosition
-      worldPos = V3 px py pz  -- World position for point light calc
+      -- Transform local position to world position
+      worldPos4 = modelMat !* V4 px py pz 1
+      worldPos = worldPos4 ^. _xyz
       clipPos = modelViewProj !* V4 px py pz 1
       worldNormal = normMat !* meshPrimNormal
       matIdFloat = toFloat meshPrimData
-      -- Geometry data
+      -- Geometry data (worldPos is now actual world position)
       geomData = (fmap Flat worldNormal, meshPrimUv, matIdFloat, worldPos)
       -- Light parameters (all Flat since constant across vertices)
       lightData = ( fmap Flat dirLightDir
@@ -370,26 +393,30 @@ renderModelAtlas PhongAtlasContext{..} model transform lighting = do
       viewProjMat = cameraProjMat newCam !*! cameraViewMat newCam !*! modelMat
       normMat = fromQuaternion (transformRotation transform)
 
-      -- Pack directional light parameters (zero if disabled)
-      (dirLightDir, dirLightColorInt) = case lightingDirectional lighting of
-        Just dl -> ( signorm (dirLightDirection dl)
-                   , let V3 r g b = dirLightColor dl
-                     in V4 r g b (dirLightIntensity dl)
-                   )
-        Nothing -> (V3 0 0 1, V4 0 0 0 0)  -- Disabled
+      -- Pack directional light: direction.xyz + intensity in .w
+      dirLightPacked = case lightingDirectional lighting of
+        Just dl -> let V3 dx dy dz = signorm (dirLightDirection dl)
+                   in V4 dx dy dz (dirLightIntensity dl)
+        Nothing -> V4 0 0 1 0  -- Disabled (pointing up, zero intensity)
 
-      -- Pack point light parameters (zero power if disabled)
-      (pointLightPos, pointLightColorPow) = case lightingPoint lighting of
-        Just pl -> ( pointLightPosition pl
-                   , let V3 r g b = pointLightColor pl
-                     in V4 r g b (pointLightPower pl)
-                   )
-        Nothing -> (V3 0 0 0, V4 0 0 0 0)  -- Disabled
-
+      -- Pack point light position + ambient in .w
       ambient = lightingAmbient lighting
+      pointLightPosPacked = case lightingPoint lighting of
+        Just pl -> let V3 px py pz = pointLightPosition pl
+                   in V4 px py pz ambient
+        Nothing -> V4 0 0 0 ambient  -- No point light, but keep ambient
+
+      -- Pack point light color + power
+      pointLightColorPow = case lightingPoint lighting of
+        Just pl -> let V3 r g b = pointLightColor pl
+                   in V4 r g b (pointLightPower pl)
+        Nothing -> V4 0 0 0 0  -- Disabled
+
+      -- Shadow params (not used in non-shadow shader, but needed for uniform)
+      shadowParams = V3 100.0 0.005 0  -- (shadowFar, shadowBias, unused)
 
   writeBuffer phongAtlasMatrix 0
-    [(viewProjMat, normMat, dirLightDir, dirLightColorInt, pointLightPos, pointLightColorPow, ambient)]
+    [(viewProjMat, modelMat, normMat, dirLightPacked, pointLightPosPacked, pointLightColorPow, shadowParams)]
 
   -- Render the frame
   render $ do
@@ -414,3 +441,395 @@ renderModelAtlas PhongAtlasContext{..} model transform lighting = do
                          )
       }
   swapWindowBuffers phongAtlasWindow
+
+--------------------------------------------------------------------------------
+-- Shadow-enabled variants
+--------------------------------------------------------------------------------
+
+-- | Shader environment for atlas-based rendering with shadow support
+data PhongAtlasEnvShadow os = PhongAtlasEnvShadow
+  { shadowEnvPrimitives    :: PrimitiveArray Triangles (MeshArray (ArrayOf Int32))
+    -- ^ Mesh primitives with material IDs
+  , shadowEnvRasterOptions :: (Side, ViewPort, DepthRange)
+    -- ^ Rasterization options
+  , shadowDiffuseAtlas  :: ( Texture2DArray os (Format RGBAFloat)
+                           , SamplerFilter RGBAFloat
+                           , (EdgeMode2, BorderColor RGBAFloat)
+                           )
+    -- ^ Diffuse texture array with sampler settings
+  , shadowNormalAtlas   :: ( Texture2DArray os (Format RGBAFloat)
+                           , SamplerFilter RGBAFloat
+                           , (EdgeMode2, BorderColor RGBAFloat)
+                           )
+    -- ^ Normal map texture array
+  , shadowMaterialLookup :: ( Texture2D os (Format RFloat)
+                            , SamplerFilter RFloat
+                            , (EdgeMode2, BorderColor RFloat)
+                            )
+    -- ^ Material lookup texture
+  , shadowFace0          :: ( Texture2D os (Format Depth)
+                            , SamplerFilter Depth
+                            , (EdgeMode2, BorderColor Depth)
+                            )
+    -- ^ Shadow cube face +X
+  , shadowFace1          :: ( Texture2D os (Format Depth)
+                            , SamplerFilter Depth
+                            , (EdgeMode2, BorderColor Depth)
+                            )
+    -- ^ Shadow cube face -X
+  , shadowFace2          :: ( Texture2D os (Format Depth)
+                            , SamplerFilter Depth
+                            , (EdgeMode2, BorderColor Depth)
+                            )
+    -- ^ Shadow cube face +Y
+  , shadowFace3          :: ( Texture2D os (Format Depth)
+                            , SamplerFilter Depth
+                            , (EdgeMode2, BorderColor Depth)
+                            )
+    -- ^ Shadow cube face -Y
+  , shadowFace4          :: ( Texture2D os (Format Depth)
+                            , SamplerFilter Depth
+                            , (EdgeMode2, BorderColor Depth)
+                            )
+    -- ^ Shadow cube face +Z
+  , shadowFace5          :: ( Texture2D os (Format Depth)
+                            , SamplerFilter Depth
+                            , (EdgeMode2, BorderColor Depth)
+                            )
+    -- ^ Shadow cube face -Z
+  }
+
+-- | Context for shadow-enabled atlas rendering
+data PhongAtlasShadowContext os = PhongAtlasShadowContext
+  { psWindow        :: !(Window os RGBAFloat Depth)
+    -- ^ Target window to render to
+  , psMatrix        :: !(PhongAtlasUniform os)
+    -- ^ Buffer with MVP matrix and lighting params
+  , psCamera        :: !(Camera Float)
+    -- ^ View projection camera
+  , psMainShader    :: !(CompiledShader os (PhongAtlasEnvShadow os))
+    -- ^ Compiled main shader with shadow sampling
+  , psShadowShader  :: !(CompiledShader os (ShadowPassEnv os))
+    -- ^ Compiled shadow pass shader
+  , psTexture       :: !(TextureAtlas os)
+    -- ^ Texture atlas for materials
+  , psMaterials     :: !MaterialTable
+    -- ^ Material definitions
+  , psMatLookup     :: !(Texture2D os (Format RFloat))
+    -- ^ Material lookup texture
+  , psNormalTex     :: !(Texture2DArray os (Format RGBAFloat))
+    -- ^ Normal map texture
+  , psShadow        :: !(PointLightShadow os)
+    -- ^ Point light shadow map resources
+  }
+
+-- | Phong shading with shadow support
+phongAtlasShadowShader
+  :: Window os RGBAFloat Depth
+  -> PhongAtlasUniform os
+  -> Shader os (PhongAtlasEnvShadow os) ()
+phongAtlasShadowShader win uniform = do
+  sides <- toPrimitiveStream shadowEnvPrimitives
+  (modelViewProj, modelMat, normMat, dirLightPacked, pointLightPosPacked, pointLightColorPow, shadowParams)
+    <- getUniform (const (uniform, 0))
+
+  -- Unpack directional light (xyz = direction, w = intensity)
+  let dirLightDir = dirLightPacked ^. _xyz
+      dirIntensity = dirLightPacked ^. _w
+      dirLightColorInt = V4 1 1 1 dirIntensity  -- White directional light
+  -- Unpack point light (position.xyz, ambient in w)
+  let pointLightPos = pointLightPosPacked ^. _xyz
+      ambient = pointLightPosPacked ^. _w
+  -- Extract shadow params (far, bias, unused)
+  let shadowFarU = shadowParams ^. _x
+      shadowBiasU = shadowParams ^. _y
+
+  let projectedSides = projShadow modelViewProj modelMat normMat
+                         dirLightDir dirLightColorInt pointLightPos pointLightColorPow
+                         ambient shadowFarU shadowBiasU
+                         <$> sides
+
+  -- Create texture samplers
+  diffSampler <- newSampler2DArray shadowDiffuseAtlas
+  normSampler <- newSampler2DArray shadowNormalAtlas
+  matSampler <- newSampler2D shadowMaterialLookup
+
+  -- Create shadow samplers for each cube face
+  shadowSamp0 <- newSampler2D shadowFace0
+  shadowSamp1 <- newSampler2D shadowFace1
+  shadowSamp2 <- newSampler2D shadowFace2
+  shadowSamp3 <- newSampler2D shadowFace3
+  shadowSamp4 <- newSampler2D shadowFace4
+  shadowSamp5 <- newSampler2D shadowFace5
+
+  fragData <- rasterize shadowEnvRasterOptions projectedSides
+
+  -- Fragment shader with shadow sampling
+  let litFrags = sampleAndLightShadow diffSampler normSampler matSampler
+                   shadowSamp0 shadowSamp1 shadowSamp2
+                   shadowSamp3 shadowSamp4 shadowSamp5
+                   <$> fragData
+      litFragsWithDepth = withRasterizedInfo
+          (\a x -> (a, rasterizedFragCoord x ^. _z)) litFrags
+      colorOption = ContextColorOption NoBlending (pure True)
+      depthOption = DepthOption Less True
+
+  drawWindowColorDepth (const (win, colorOption, depthOption)) litFragsWithDepth
+
+-- | Project vertex to clip space with shadow parameters
+projShadow :: V4 (V4 VFloat)  -- ^ Model-view-projection matrix
+           -> V4 (V4 VFloat)  -- ^ Model matrix (for world position)
+           -> V3 (V3 VFloat)  -- ^ Normal matrix
+           -> V3 VFloat       -- ^ Directional light direction
+           -> V4 VFloat       -- ^ Directional light color + intensity
+           -> V3 VFloat       -- ^ Point light position
+           -> V4 VFloat       -- ^ Point light color + power
+           -> VFloat          -- ^ Ambient
+           -> VFloat          -- ^ Shadow far plane
+           -> VFloat          -- ^ Shadow bias
+           -> MeshVertex VInt
+           -> (V4 VFloat, ((V3 FlatVFloat, V2 VFloat, VFloat, V3 VFloat),
+                           (V3 FlatVFloat, V4 FlatVFloat, V3 FlatVFloat, V4 FlatVFloat, FlatVFloat, FlatVFloat, FlatVFloat)))
+projShadow modelViewProj modelMat normMat dirLightDir dirLightColorInt pointLightPos pointLightColorPow
+           ambient shadowFar shadowBias MeshVertex{..} =
+  let V3 px py pz = meshPrimPosition
+      -- Transform local position to world position (same as shadow pass)
+      worldPos4 = modelMat !* V4 px py pz 1
+      worldPos = worldPos4 ^. _xyz
+      clipPos = modelViewProj !* V4 px py pz 1
+      worldNormal = normMat !* meshPrimNormal
+      matIdFloat = toFloat meshPrimData
+      -- Geometry data (worldPos is now actual world position)
+      geomData = (fmap Flat worldNormal, meshPrimUv, matIdFloat, worldPos)
+      -- Light parameters with shadow params (all Flat since constant across vertices)
+      lightData = ( fmap Flat dirLightDir
+                  , fmap Flat dirLightColorInt
+                  , fmap Flat pointLightPos
+                  , fmap Flat pointLightColorPow
+                  , Flat ambient
+                  , Flat shadowFar
+                  , Flat shadowBias
+                  )
+  in (clipPos, (geomData, lightData))
+
+-- | Sample texture and apply Phong lighting with shadows
+sampleAndLightShadow
+  :: Sampler2DArray (Format RGBAFloat)  -- ^ Diffuse texture sampler
+  -> Sampler2DArray (Format RGBAFloat)  -- ^ Normal map sampler
+  -> Sampler2D (Format RFloat)          -- ^ Material lookup sampler
+  -> Sampler2D (Format Depth)           -- ^ Shadow face 0 (+X)
+  -> Sampler2D (Format Depth)           -- ^ Shadow face 1 (-X)
+  -> Sampler2D (Format Depth)           -- ^ Shadow face 2 (+Y)
+  -> Sampler2D (Format Depth)           -- ^ Shadow face 3 (-Y)
+  -> Sampler2D (Format Depth)           -- ^ Shadow face 4 (+Z)
+  -> Sampler2D (Format Depth)           -- ^ Shadow face 5 (-Z)
+  -> ((V3 FFloat, V2 FFloat, FFloat, V3 FFloat),
+      (V3 FFloat, V4 FFloat, V3 FFloat, V4 FFloat, FFloat, FFloat, FFloat))
+  -> V4 FFloat
+sampleAndLightShadow diffSampler normSampler matSampler
+  shadowSamp0 shadowSamp1 shadowSamp2 shadowSamp3 shadowSamp4 shadowSamp5
+  ((normal, uv, matIdF, worldPos), (dirLightDir, dirLightColorInt, pointLightPos, pointLightColorPow, ambient, shadowFar, shadowBias)) =
+  let -- Determine face direction from normal (0-5)
+      faceIdx = normalToFaceIndex normal
+
+      -- Look up texture layer from material lookup texture
+      matUV = V2 ((faceIdx + 0.5) / 6.0) ((matIdF + 0.5) / 256.0)
+      texLayer = sample2D matSampler SampleAuto Nothing Nothing matUV
+
+      -- Sample from texture array using UV and layer
+      V2 u v = uv
+      uvLayer = V3 u v texLayer
+      diffuseSrgb = sample2DArray diffSampler SampleAuto Nothing uvLayer
+      normalSample = sample2DArray normSampler SampleAuto Nothing uvLayer
+
+      -- Convert diffuse texture from sRGB to linear space for lighting
+      V4 dr dg db da = diffuseSrgb
+      diffuseLinear = V3 (srgbToLinear dr) (srgbToLinear dg) (srgbToLinear db)
+
+      -- Compute TBN matrix for this face
+      (tangent, bitangent, _) = computeTBN normal
+
+      -- Apply normal map to get perturbed normal
+      shadingNormal = applyNormalMap normal tangent bitangent normalSample
+      V3 nx ny nz = shadingNormal
+
+      -- Unpack directional light parameters
+      V4 dirR dirG dirB dirIntensity = dirLightColorInt
+
+      -- Compute directional light contribution (no shadows for directional)
+      dirLightDirNorm = signorm dirLightDir
+      dirNdotL = maxB 0 (nx * (dirLightDirNorm^._x) + ny * (dirLightDirNorm^._y) + nz * (dirLightDirNorm^._z))
+      dirContribR = dirNdotL * dirIntensity * dirR
+      dirContribG = dirNdotL * dirIntensity * dirG
+      dirContribB = dirNdotL * dirIntensity * dirB
+
+      -- Unpack point light parameters
+      V4 ptR ptG ptB ptPower = pointLightColorPow
+
+      -- Compute shadow factor for point light
+      -- Use small depth bias for comparison
+      shadowFactor = samplePointShadow
+                       shadowSamp0 shadowSamp1 shadowSamp2
+                       shadowSamp3 shadowSamp4 shadowSamp5
+                       worldPos pointLightPos shadowFar shadowBias
+
+      -- Compute point light contribution with shadow
+      toLight = pointLightPos - worldPos
+      dist = norm toLight
+      pointLightDir = signorm toLight
+      attenuation = 1.0 / (1.0 + ptPower * dist * dist)
+      ptNdotL = maxB 0 (nx * (pointLightDir^._x) + ny * (pointLightDir^._y) + nz * (pointLightDir^._z))
+      -- Multiply by shadow factor
+      ptContribR = shadowFactor * ptNdotL * attenuation * ptR
+      ptContribG = shadowFactor * ptNdotL * attenuation * ptG
+      ptContribB = shadowFactor * ptNdotL * attenuation * ptB
+
+      -- Combine all lighting in linear space
+      V3 linR linG linB = diffuseLinear
+      litR = linR * (ambient + dirContribR + ptContribR)
+      litG = linG * (ambient + dirContribG + ptContribG)
+      litB = linB * (ambient + dirContribB + ptContribB)
+
+      -- Convert back to sRGB for display
+      outR = linearToSrgb litR
+      outG = linearToSrgb litG
+      outB = linearToSrgb litB
+
+  in V4 outR outG outB da
+
+-- | Create new shadow-enabled renderer context
+newPhongAtlasShadowContext
+  :: Window os RGBAFloat Depth
+  -> TextureAtlas os    -- ^ Loaded texture atlas
+  -> MaterialTable      -- ^ Material definitions
+  -> Camera Float       -- ^ Initial view
+  -> ShadowConfig       -- ^ Shadow configuration
+  -> SpiderCtx os (PhongAtlasShadowContext os)
+newPhongAtlasShadowContext win atlas materials camera shadowCfg = do
+  matBuffer <- newBuffer 1
+
+  -- Create material lookup texture
+  let (texW, texH, pixels) = materialsToPixels materials
+      actualH = max 256 texH
+  matLookupTex <- newTexture2D R32F (V2 texW actualH) 1
+  writeTexture2D matLookupTex 0 0 (V2 texW texH) pixels
+
+  -- Get or create normal texture
+  normalTex <- case atlasNormal atlas of
+    Just tex -> pure tex
+    Nothing -> do
+      let flatNormal :: V4 Float
+          flatNormal = V4 0.5 0.5 1.0 1.0
+          V2 w h = atlasSize atlas
+          numLayers = atlasLayers atlas
+      tex <- newTexture2DArray RGBA8 (V3 w h numLayers) 1
+      let flatPixels = replicate (w * h) flatNormal
+      forM_ [0 .. numLayers - 1] $ \layer ->
+        writeTexture2DArray tex 0 (V3 0 0 layer) (V3 w h 1) flatPixels
+      pure tex
+
+  -- Create shadow map resources
+  shadow <- newPointLightShadow shadowCfg
+
+  -- Compile shadow pass shader
+  shadowShader <- compileShadowShaders shadow
+
+  -- Compile main shader with shadow sampling
+  mainShader <- compileShader $ phongAtlasShadowShader win matBuffer
+
+  pure PhongAtlasShadowContext
+    { psWindow        = win
+    , psMatrix        = matBuffer
+    , psCamera        = camera
+    , psMainShader    = mainShader
+    , psShadowShader  = shadowShader
+    , psTexture       = atlas
+    , psMaterials     = materials
+    , psMatLookup     = matLookupTex
+    , psNormalTex     = normalTex
+    , psShadow        = shadow
+    }
+
+-- | Render a model with point light shadows
+renderModelAtlasShadow
+  :: PhongAtlasShadowContext os
+  -> SceneModelAtlas os   -- ^ Loaded scene model with material IDs
+  -> Transform Float      -- ^ Model transformation
+  -> Lighting             -- ^ Light configuration
+  -> SpiderCtx os ()
+renderModelAtlasShadow PhongAtlasShadowContext{..} model transform lighting = do
+  -- Step 1: Render shadow map if point light is enabled
+  case lightingPoint lighting of
+    Just pl -> renderShadowCube psShadow psShadowShader
+                 (pointLightPosition pl) transform model
+    Nothing -> pure ()
+
+  -- Step 2: Render main scene with shadows
+  size@(V2 w h) <- getFrameBufferSize psWindow
+  let newCam = psCamera { cameraAspect = fromIntegral w / fromIntegral h }
+      modelMat = transformMatrix transform
+      viewProjMat = cameraProjMat newCam !*! cameraViewMat newCam !*! modelMat
+      normMat = fromQuaternion (transformRotation transform)
+
+      -- Pack directional light: direction.xyz + intensity in .w
+      dirLightPacked = case lightingDirectional lighting of
+        Just dl -> let V3 dx dy dz = signorm (dirLightDirection dl)
+                   in V4 dx dy dz (dirLightIntensity dl)
+        Nothing -> V4 0 0 1 0  -- Disabled (pointing up, zero intensity)
+
+      -- Pack point light position + ambient in .w
+      ambient = lightingAmbient lighting
+      pointLightPosPacked = case lightingPoint lighting of
+        Just pl -> let V3 px py pz = pointLightPosition pl
+                   in V4 px py pz ambient
+        Nothing -> V4 0 0 0 ambient  -- No point light, but keep ambient
+
+      -- Pack point light color + power
+      pointLightColorPow = case lightingPoint lighting of
+        Just pl -> let V3 r g b = pointLightColor pl
+                   in V4 r g b (pointLightPower pl)
+        Nothing -> V4 0 0 0 0  -- Disabled
+
+      -- Shadow parameters from config - pack into V3 (far, bias, unused)
+      cfg = shadowConfig psShadow
+      shadowFarVal = shadowFar cfg
+      shadowBiasVal = shadowBias cfg
+      shadowParams = V3 shadowFarVal shadowBiasVal 0
+
+      -- Shadow texture settings
+      shadowSamplerFilter = SamplerFilter Nearest Nearest Nearest Nothing
+      shadowEdgeMode = (V2 ClampToEdge ClampToEdge, 1.0)
+
+  writeBuffer psMatrix 0
+    [(viewProjMat, modelMat, normMat, dirLightPacked, pointLightPosPacked, pointLightColorPow, shadowParams)]
+
+  render $ do
+    clearWindowColor psWindow 0
+    clearWindowDepth psWindow 1
+    prims <- model
+
+    let shadowTexs = shadowTextures psShadow
+
+    psMainShader $ PhongAtlasEnvShadow
+      { shadowEnvPrimitives = prims
+      , shadowEnvRasterOptions = (FrontAndBack, ViewPort 0 size, DepthRange 0 1)
+      , shadowDiffuseAtlas = ( atlasDiffuse psTexture
+                             , SamplerFilter Nearest Nearest Nearest Nothing
+                             , (V2 Repeat Repeat, V4 0 0 0 0)
+                             )
+      , shadowNormalAtlas = ( psNormalTex
+                            , SamplerFilter Nearest Nearest Nearest Nothing
+                            , (V2 Repeat Repeat, V4 0.5 0.5 1.0 1.0)
+                            )
+      , shadowMaterialLookup = ( psMatLookup
+                               , SamplerFilter Nearest Nearest Nearest Nothing
+                               , (V2 ClampToEdge ClampToEdge, 0)
+                               )
+      , shadowFace0 = (shadowTexs V.! 0, shadowSamplerFilter, shadowEdgeMode)
+      , shadowFace1 = (shadowTexs V.! 1, shadowSamplerFilter, shadowEdgeMode)
+      , shadowFace2 = (shadowTexs V.! 2, shadowSamplerFilter, shadowEdgeMode)
+      , shadowFace3 = (shadowTexs V.! 3, shadowSamplerFilter, shadowEdgeMode)
+      , shadowFace4 = (shadowTexs V.! 4, shadowSamplerFilter, shadowEdgeMode)
+      , shadowFace5 = (shadowTexs V.! 5, shadowSamplerFilter, shadowEdgeMode)
+      }
+  swapWindowBuffers psWindow

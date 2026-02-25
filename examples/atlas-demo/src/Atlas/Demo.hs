@@ -12,7 +12,10 @@ import Data.Voxel.App.Class
 import Data.Voxel.Camera
 import Data.Voxel.Material
 import Data.Voxel.Scene
-import Data.Voxel.Shader.PhongAtlas (PhongAtlasContext, newPhongAtlasContext, renderModelAtlas, Lighting(..), PointLight(..))
+import Data.Voxel.Shader.PhongAtlas
+  ( PhongAtlasShadowContext, newPhongAtlasShadowContext, renderModelAtlasShadow
+  , Lighting(..), PointLight(..), ShadowConfig(..), defaultShadowConfig
+  )
 import Data.Voxel.Texture.Atlas
 import Data.Voxel.Transform
 import Data.Voxel.Window
@@ -126,8 +129,13 @@ runDemo = runAppHost $ do
     putStrLn $ "View matrix:\n" ++ show (cameraViewMat camera)
     putStrLn $ "Proj matrix:\n" ++ show (cameraProjMat camera)
 
-  -- Create rendering context
-  ctx <- newPhongAtlasContext win atlas materials camera
+  -- Create rendering context with shadow support
+  let shadowCfg = defaultShadowConfig
+        { shadowResolution = 1024  -- Shadow map resolution per cube face
+        , shadowFar = 50.0         -- Light range
+        , shadowBias = 0.0005      
+        }
+  ctx <- newPhongAtlasShadowContext win atlas materials camera shadowCfg
 
   liftIO $ putStrLn "Starting render loop..."
   liftIO $ putStrLn $ "Atlas has " ++ show (atlasLayers atlas) ++ " layers, size " ++ show (atlasSize atlas)
@@ -152,9 +160,9 @@ centeredTransform finalPos rotation scale = Transform
     rotatedCenter = rotate rotation center
     translation = finalPos - rotatedCenter
 
--- | Main application loop with rotating point light
+-- | Main application loop with rotating point light and shadows
 demoApp :: forall t m os . MonadApp t os m
-  => PhongAtlasContext os
+  => PhongAtlasShadowContext os
   -> SceneModelMaterial os
   -> m ()
 demoApp ctx model = do
@@ -177,7 +185,7 @@ demoApp ctx model = do
     let orbitRadius = 2.0
         lightX = orbitRadius * cos angle
         lightY = orbitRadius * sin angle
-        lightZ = 1.5  -- Slightly above the cubes
+        lightZ = 2.5  -- Slightly above the cubes
         pointLight = PointLight
           { pointLightPosition = V3 lightX lightY lightZ
           , pointLightColor    = V3 2.1 2 0.1  -- Warm white
@@ -189,4 +197,4 @@ demoApp ctx model = do
           , lightingPoint       = Just pointLight
           }
 
-    renderModelAtlas ctx model transform lighting
+    renderModelAtlasShadow ctx model transform lighting

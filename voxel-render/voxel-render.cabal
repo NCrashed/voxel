@@ -34,6 +34,8 @@ library
     Data.Voxel.Shader.Flat
     Data.Voxel.Shader.Phong
     Data.Voxel.Shader.PhongAtlas
+    Data.Voxel.Shadow.PointLight
+    Data.Voxel.Shadow.Sample
     Data.Voxel.Texture
     Data.Voxel.Texture.Atlas
     Data.Voxel.Transform
